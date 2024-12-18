@@ -16,7 +16,7 @@ type Duration time.Duration
 
 var (
 	// minPeriod is a minimal period value of subscriptions' group refresh.
-	minPeriod = Duration(time.Minute)
+	minPeriod = Duration(time.Second)
 
 	// minTimeout is a minimal timeout value of subscription refresh.
 	minTimeout = Duration(10 * time.Millisecond)

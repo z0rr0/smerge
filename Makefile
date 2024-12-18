@@ -41,12 +41,6 @@ gh: build
 	go test -race -cover $(PWD)/...
 
 docker: lint clean
-	docker build --build-arg LDFLAGS="$(LDFLAGS)" -t $(DOCKER_TAG) .
-
-docker_both: lint clean
-	docker buildx build --platform linux/amd64,linux/arm64 --build-arg LDFLAGS="$(LDFLAGS)" -t $(DOCKER_TAG) .
-
-docker_linux_amd64: lint clean
 	docker buildx build --platform linux/amd64 --build-arg LDFLAGS="$(LDFLAGS)" -t $(DOCKER_TAG) .
 
 clean:

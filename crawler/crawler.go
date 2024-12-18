@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +29,7 @@ type Crawler struct {
 }
 
 type fetchResult struct {
-	data  string
+	data  []string
 	error error
 }
 
@@ -59,7 +60,7 @@ func (c *Crawler) Run() {
 
 		go func(group *cfg.Group) {
 			period := group.Period.Timed()
-			slog.Info("starting group handler", "name", name, "period", period)
+			slog.Info("starting group handler", "group", name, "period", period)
 			c.fetchGroup(group) // init fetch
 
 			ticker := time.NewTicker(period)
@@ -71,10 +72,10 @@ func (c *Crawler) Run() {
 			for {
 				select {
 				case <-c.ctx.Done():
-					slog.Info("group handler stopped", "name", group.Name)
+					slog.Info("group handler stopped", "group", group.Name)
 					return
 				case <-ticker.C:
-					slog.Info("group handler tick", "name", group.Name, "period", period)
+					slog.Info("group handler tick", "group", group.Name, "period", period)
 					c.fetchGroup(group)
 				}
 			}
@@ -99,28 +100,30 @@ func (c *Crawler) Get(groupName string) string {
 // fetchGroup fetches all subscriptions for the group.
 func (c *Crawler) fetchGroup(group *cfg.Group) {
 	var (
-		result  = make(chan fetchResult)
-		subLen  = len(group.Subscriptions)
-		builder strings.Builder
+		result           = make(chan fetchResult)
+		start            = time.Now()
+		subscriptionsLen = len(group.Subscriptions)
 	)
 	defer close(result)
-	slog.Info("fetchGroup", "name", group.Name, "subscriptions", subLen)
+	slog.Info("fetchGroup", "group", group.Name, "subscriptions", subscriptionsLen)
 
 	for i := range group.Subscriptions {
 		go c.fetchSubscription(group.Name, &group.Subscriptions[i], result)
 	}
 
-	for i := 0; i < subLen; i++ {
+	subscriptionsItems := make([]string, 0, subscriptionsLen)
+	for i := 0; i < subscriptionsLen; i++ {
 		res := <-result
 		if res.error != nil {
 			slog.Error("fetchError", "group", group.Name, "error", res.error)
 		} else {
-			builder.WriteString(res.data)
-			builder.WriteString("\n")
+			subscriptionsItems = append(subscriptionsItems, res.data...)
 		}
 	}
 
-	groupSubs := strings.TrimRight(builder.String(), "\n")
+	sort.Strings(subscriptionsItems)
+	groupSubs := strings.Join(subscriptionsItems, "\n")
+
 	if group.Encoded {
 		groupSubs = base64.StdEncoding.EncodeToString([]byte(groupSubs))
 	}
@@ -128,6 +131,8 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	c.Lock()
 	c.result[group.Name] = groupSubs
 	c.Unlock()
+
+	slog.Info("fetched", "group", group.Name, "size", len(subscriptionsItems), "len", len(groupSubs), "duration", time.Since(start))
 }
 
 // fetchSubscription fetches the subscription data.
@@ -142,8 +147,9 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	}
 
 	req.Header.Set("User-Agent", userAgent)
-	slog.Info("fetchSubscription", "group", groupName, "name", sub.Name, "url", sub.URL)
+	slog.Debug("fetchSubscription", "group", groupName, "subscription", sub.Name, "url", sub.URL)
 
+	start := time.Now()
 	resp, err := c.client.Do(req)
 	if err != nil {
 		result <- fetchResult{error: fmt.Errorf("client do error: %w", err)}
@@ -152,7 +158,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 
 	defer func() {
 		if e := resp.Body.Close(); e != nil {
-			slog.Error("response body close error", "group", groupName, "name", sub.Name, "error", e)
+			slog.Error("response body close error", "group", groupName, "subscription", sub.Name, "error", e)
 		}
 	}()
 
@@ -174,6 +180,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		}
 	}
 
-	slog.Info("fetched", "group", groupName, "name", sub.Name, "size", n)
-	result <- fetchResult{data: buf.String()}
+	data := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
+	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(data), "bytes", n, "duration", time.Since(start))
+	result <- fetchResult{data: data}
 }

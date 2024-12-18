@@ -1,0 +1,2 @@
+# smerge
+Subscriptions merge tool

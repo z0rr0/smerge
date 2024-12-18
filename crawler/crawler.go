@@ -15,7 +15,7 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
-const userAgent = "smerge-crawler"
+const userAgent = "SMerge/1.0"
 
 // Crawler is a main crawler structure.
 type Crawler struct {
@@ -125,7 +125,6 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 		groupSubs = base64.StdEncoding.EncodeToString([]byte(groupSubs))
 	}
 
-	// update
 	c.Lock()
 	c.result[group.Name] = groupSubs
 	c.Unlock()

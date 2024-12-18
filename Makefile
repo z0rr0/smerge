@@ -4,7 +4,7 @@ TAG=$(shell git tag | sort -V | tail -1)
 COMMIT=$(shell git log --oneline | head -1)
 VERSION=$(firstword $(COMMIT))
 LDFLAGS=-X main.Version=$(TAG) -X main.Revision=git:$(VERSION) -X main.BuildDate=$(TS)
-DOCKER_TAG=z0rr0/spts
+DOCKER_TAG=z0rr0/smerge
 
 # coverage check example
 # go test -cover -v -race -coverprofile=coverage.out -trace trace.out github.com/z0rr0/spts/client

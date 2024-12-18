@@ -51,12 +51,12 @@ func Run(config *cfg.Config) {
 		defer func() {
 			slog.Info(
 				"request", "id", reqID, "method", r.Method,
-				"code", code, "duration", time.Since(start), "remote", r.RemoteAddr,
+				"code", code, "remote", r.RemoteAddr, "duration", time.Since(start),
 			)
 		}()
 
 		url := strings.Trim(r.URL.Path, "/ ")
-		slog.Info("request", "id", reqID, "method", r.Method, "url", url, "remote", r.RemoteAddr)
+		slog.Info("request", "id", reqID, "method", r.Method, "endpoint", url, "remote", r.RemoteAddr)
 
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)

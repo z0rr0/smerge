@@ -151,8 +151,6 @@ func (c *Config) GroupsMap() map[string]*Group {
 // readConfig reads a configuration file from the filesystem.
 func readConfig(filename string) ([]byte, error) {
 	const dockerDir = "/data/conf"
-	var testConfig = filepath.Join(os.TempDir(), "smerge.json")
-
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("get current dir: %w", err)
@@ -161,10 +159,11 @@ func readConfig(filename string) ([]byte, error) {
 	cleanPath := filepath.Clean(strings.Trim(filename, " "))
 	isDocker := strings.HasPrefix(cleanPath, dockerDir)
 	isCurrent := strings.HasPrefix(cleanPath, currentDir)
+	isTemp := strings.HasPrefix(cleanPath, os.TempDir())
 
 	if filepath.IsAbs(cleanPath) {
-		if !(cleanPath == testConfig || isDocker || isCurrent) {
-			return nil, fmt.Errorf("file %q has relative path and not in the allowed directories", cleanPath)
+		if !(isTemp || isDocker || isCurrent) {
+			return nil, fmt.Errorf("file %q has abusolute path and not in the allowed directories", cleanPath)
 		}
 	} else {
 		cleanPath = filepath.Join(currentDir, cleanPath)

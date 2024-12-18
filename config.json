@@ -1,0 +1,29 @@
+{
+  "host": "localhost",
+  "port": 43210,
+  "timeout": "10s",
+  "workers": 1,
+  "debug": true,
+  "groups": [
+    {
+      "name": "group1",
+      "endpoint": "/group1",
+      "encoded": true,
+      "period": "12h",
+      "subscriptions": [
+        {
+          "name": "subscription1",
+          "url": "http://localhost:43211/subscription1",
+          "encoded": false,
+          "timeout": "10s"
+        },
+        {
+          "name": "subscription2",
+          "url": "http://localhost:43212/subscription2",
+          "encoded": true,
+          "timeout": "10s"
+        }
+      ]
+    }
+  ]
+}

@@ -1,2 +1,3 @@
-# smerge
-Subscriptions merge tool
+# SMerge
+
+Subscriptions merge tool.

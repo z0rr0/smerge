@@ -38,7 +38,7 @@ func Run(config *cfg.Config) {
 		WriteTimeout:   serverTimeout,
 		MaxHeaderBytes: 1 << 10, // 1Kb
 	}
-	idleConnsClosed := make(chan struct{})
+	serverStopped := make(chan struct{})
 
 	go func() {
 		sigint := make(chan os.Signal, 1)
@@ -56,7 +56,7 @@ func Run(config *cfg.Config) {
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
 		}
-		close(idleConnsClosed)
+		close(serverStopped)
 	}()
 
 	slog.Info("starting server", "addr", serverAddr)
@@ -64,6 +64,6 @@ func Run(config *cfg.Config) {
 		slog.Error("HTTP server ListenAndServe error", "error", err)
 	}
 
-	<-idleConnsClosed
+	<-serverStopped
 	slog.Info("HTTP server stopped")
 }

@@ -90,13 +90,13 @@ func TestSubscriptionValidate(t *testing.T) {
 		{
 			name:   "empty name",
 			sub:    Subscription{URL: "http://localhost:43211/subscription1"},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "subscription name is empty",
 		},
 		{
 			name:   "empty URL",
 			sub:    Subscription{Name: "subscription1"},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "subscription URL is empty",
 		},
 		{
@@ -106,7 +106,7 @@ func TestSubscriptionValidate(t *testing.T) {
 				URL:     "http://localhost:43211/subscription1",
 				Timeout: Duration(1),
 			},
-			err:    DenyIntervalError,
+			err:    ErrDenyInterval,
 			errMsg: "timeout is too short, should be at least",
 		},
 		{
@@ -116,7 +116,7 @@ func TestSubscriptionValidate(t *testing.T) {
 				URL:     "https://%.com",
 				Timeout: Duration(time.Second),
 			},
-			err:    ParseError,
+			err:    ErrParse,
 			errMsg: "URL is invalid",
 		},
 		{
@@ -170,7 +170,7 @@ func TestGroupValidate(t *testing.T) {
 		{
 			name:   "empty name",
 			group:  Group{Period: Duration(time.Hour)},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "group name is empty",
 		},
 		{
@@ -179,7 +179,7 @@ func TestGroupValidate(t *testing.T) {
 				Name:   "group1",
 				Period: Duration(time.Millisecond),
 			},
-			err:    DenyIntervalError,
+			err:    ErrDenyInterval,
 			errMsg: "period is too short, should be at least",
 		},
 		{
@@ -188,7 +188,7 @@ func TestGroupValidate(t *testing.T) {
 				Name:   "group1",
 				Period: Duration(time.Hour),
 			},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "group \"group1\" has no subscriptions",
 		},
 		{
@@ -198,7 +198,7 @@ func TestGroupValidate(t *testing.T) {
 				Period:        Duration(time.Hour),
 				Subscriptions: []Subscription{{}},
 			},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "subscription name is empty",
 		},
 		{
@@ -212,7 +212,7 @@ func TestGroupValidate(t *testing.T) {
 					{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: sec},
 				},
 			},
-			err:    DuplicateError,
+			err:    ErrDuplicate,
 			errMsg: "subscription [1] \"subscription1\" is duplicated",
 		},
 		{
@@ -267,19 +267,19 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name:   "empty host",
 			config: Config{},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "host is empty",
 		},
 		{
 			name:   "empty port",
 			config: Config{Host: "localhost"},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "port is empty",
 		},
 		{
 			name:   "no groups",
 			config: Config{Host: "localhost", Port: 43210},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "no groups defined",
 		},
 		{
@@ -291,7 +291,7 @@ func TestConfigValidate(t *testing.T) {
 					{Period: Duration(time.Hour)},
 				},
 			},
-			err:    RequiredFieldError,
+			err:    ErrRequiredField,
 			errMsg: "group name is empty",
 		},
 		{
@@ -318,7 +318,7 @@ func TestConfigValidate(t *testing.T) {
 					},
 				},
 			},
-			err:    DuplicateError,
+			err:    ErrDuplicate,
 			errMsg: "group name [1] \"group1\" is duplicated",
 		},
 		{
@@ -345,7 +345,7 @@ func TestConfigValidate(t *testing.T) {
 					},
 				},
 			},
-			err:    DuplicateError,
+			err:    ErrDuplicate,
 			errMsg: "endpoint [1] \"/group1\" is duplicated",
 		},
 		{
@@ -459,12 +459,12 @@ func TestDurationUnmarshalJSON(t *testing.T) {
 		{
 			name: "invalid duration",
 			str:  `"1x"`,
-			err:  ParseError,
+			err:  ErrParse,
 		},
 		{
 			name: "empty duration",
 			str:  `""`,
-			err:  ParseError,
+			err:  ErrParse,
 		},
 		{
 			name:     "1 hour and 10 second",
@@ -479,7 +479,7 @@ func TestDurationUnmarshalJSON(t *testing.T) {
 		{
 			name: "bad json",
 			str:  `1h10s"`,
-			err:  ParseError,
+			err:  ErrParse,
 		},
 	}
 

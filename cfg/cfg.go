@@ -22,26 +22,26 @@ var (
 	// minTimeout is a minimal timeout value of subscription refresh.
 	minTimeout = Duration(10 * time.Millisecond)
 
-	// RequiredFieldError is an error for required field.
-	RequiredFieldError = errors.New("required field is empty")
-	// DenyIntervalError is an error for deny interval, too short or too long.
-	DenyIntervalError = errors.New("deny interval")
-	// DuplicateError is an error for duplicated value.
-	DuplicateError = errors.New("duplicate error")
-	// ParseError is an error for parsing error.
-	ParseError = errors.New("parse error")
+	// ErrRequiredField is an error for required field.
+	ErrRequiredField = errors.New("required field is empty")
+	// ErrDenyInterval is an error for deny interval, too short or too long.
+	ErrDenyInterval = errors.New("deny interval")
+	// ErrDuplicate is an error for duplicated value.
+	ErrDuplicate = errors.New("duplicate error")
+	// ErrParse is an error for parsing error.
+	ErrParse = errors.New("parse error")
 )
 
 // UnmarshalJSON parses a JSON string into a Duration type.
 func (d *Duration) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
-		return errors.Join(ParseError, fmt.Errorf("failed to unmarshal duration [%s]: %w", b, err))
+		return errors.Join(ErrParse, fmt.Errorf("failed to unmarshal duration [%s]: %w", b, err))
 	}
 
 	duration, err := time.ParseDuration(s)
 	if err != nil {
-		return errors.Join(ParseError, fmt.Errorf("failed to parse duration [%s]: %w", s, err))
+		return errors.Join(ErrParse, fmt.Errorf("failed to parse duration [%s]: %w", s, err))
 	}
 
 	*d = Duration(duration)
@@ -74,20 +74,20 @@ type Subscription struct {
 // Validate checks the subscription for correctness.
 func (s *Subscription) Validate() error {
 	if s.Name == "" {
-		return errors.Join(RequiredFieldError, fmt.Errorf("subscription name is empty"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("subscription name is empty"))
 	}
 
 	if s.URL == "" {
-		return errors.Join(RequiredFieldError, fmt.Errorf("subscription URL is empty"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("subscription URL is empty"))
 	}
 
 	if s.Timeout < minTimeout {
-		return errors.Join(DenyIntervalError, fmt.Errorf("timeout is too short, should be at least %v", minTimeout))
+		return errors.Join(ErrDenyInterval, fmt.Errorf("timeout is too short, should be at least %v", minTimeout))
 	}
 
 	_, err := url.Parse(s.URL)
 	if err != nil {
-		return errors.Join(ParseError, fmt.Errorf("URL is invalid: %w", err))
+		return errors.Join(ErrParse, fmt.Errorf("URL is invalid: %w", err))
 	}
 
 	return nil
@@ -105,16 +105,16 @@ type Group struct {
 // Validate checks the group for correctness.
 func (g *Group) Validate() error {
 	if g.Name == "" {
-		return errors.Join(RequiredFieldError, fmt.Errorf("group name is empty"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("group name is empty"))
 	}
 
 	if g.Period < minPeriod {
-		return errors.Join(DenyIntervalError, fmt.Errorf("period is too short, should be at least %v", minPeriod))
+		return errors.Join(ErrDenyInterval, fmt.Errorf("period is too short, should be at least %v", minPeriod))
 	}
 
 	n := len(g.Subscriptions)
 	if n == 0 {
-		return errors.Join(RequiredFieldError, fmt.Errorf("group %q has no subscriptions", g.Name))
+		return errors.Join(ErrRequiredField, fmt.Errorf("group %q has no subscriptions", g.Name))
 	}
 
 	subscriptions := make(map[string]struct{}, n)
@@ -125,7 +125,7 @@ func (g *Group) Validate() error {
 		}
 
 		if _, ok := subscriptions[sub.Name]; ok {
-			return errors.Join(DuplicateError, fmt.Errorf("subscription [%d] %q is duplicated", i, sub.Name))
+			return errors.Join(ErrDuplicate, fmt.Errorf("subscription [%d] %q is duplicated", i, sub.Name))
 		}
 		subscriptions[sub.Name] = struct{}{}
 	}
@@ -146,16 +146,16 @@ type Config struct {
 // Validate checks the configuration for correctness.
 func (c *Config) Validate() error {
 	if c.Host == "" {
-		return errors.Join(RequiredFieldError, fmt.Errorf("host is empty"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("host is empty"))
 	}
 
 	if c.Port == 0 {
-		return errors.Join(RequiredFieldError, fmt.Errorf("port is empty"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("port is empty"))
 	}
 
 	n := len(c.Groups)
 	if n == 0 {
-		return errors.Join(RequiredFieldError, fmt.Errorf("no groups defined"))
+		return errors.Join(ErrRequiredField, fmt.Errorf("no groups defined"))
 	}
 
 	endpoints := make(map[string]struct{}, n)
@@ -167,11 +167,11 @@ func (c *Config) Validate() error {
 		}
 
 		if _, ok := endpoints[group.Endpoint]; ok {
-			return errors.Join(DuplicateError, fmt.Errorf("endpoint [%d] %q is duplicated", i, group.Endpoint))
+			return errors.Join(ErrDuplicate, fmt.Errorf("endpoint [%d] %q is duplicated", i, group.Endpoint))
 		}
 
 		if _, ok := names[group.Name]; ok {
-			return errors.Join(DuplicateError, fmt.Errorf("group name [%d] %q is duplicated", i, group.Name))
+			return errors.Join(ErrDuplicate, fmt.Errorf("group name [%d] %q is duplicated", i, group.Name))
 		}
 
 		endpoints[group.Endpoint] = struct{}{}
@@ -231,7 +231,7 @@ func New(filename string) (*Config, error) {
 
 	var config = new(Config)
 	if err = json.Unmarshal(jsonData, config); err != nil {
-		return nil, errors.Join(ParseError, fmt.Errorf("unmarshal config: %w", err))
+		return nil, errors.Join(ErrParse, fmt.Errorf("unmarshal config: %w", err))
 	}
 
 	if err = config.Validate(); err != nil {

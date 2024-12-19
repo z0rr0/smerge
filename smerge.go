@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -53,16 +54,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	initLogger(config.Debug || debug)
+	initLogger(config.Debug || debug, os.Stdout)
 	server.Run(config)
 	slog.Info("stopped")
 }
 
-func initLogger(debug bool) {
+func initLogger(debug bool, w io.Writer) {
 	var level = slog.LevelInfo
 	if debug {
 		level = slog.LevelDebug
 	}
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})))
 }

@@ -21,11 +21,12 @@ const userAgent = "SMerge/1.0"
 // Crawler is a main crawler structure.
 type Crawler struct {
 	sync.RWMutex
-	groups map[string]*cfg.Group
-	result map[string]string
-	client *http.Client
-	ctx    context.Context
-	wg     sync.WaitGroup
+	groups        map[string]*cfg.Group
+	result        map[string]string
+	client        *http.Client
+	ctxWithCancel context.Context
+	cancelFunc    context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 type fetchResult struct {
@@ -34,7 +35,7 @@ type fetchResult struct {
 }
 
 // New creates a new crawler instance.
-func New(groups []cfg.Group) (*Crawler, context.CancelFunc) {
+func New(groups []cfg.Group) *Crawler {
 	n := len(groups)
 	groupsMap := make(map[string]*cfg.Group, n)
 
@@ -43,14 +44,13 @@ func New(groups []cfg.Group) (*Crawler, context.CancelFunc) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &Crawler{
-		groups: groupsMap,
-		result: make(map[string]string, n),
-		client: &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}},
-		ctx:    ctx,
+	return &Crawler{
+		groups:        groupsMap,
+		result:        make(map[string]string, n),
+		client:        &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}},
+		ctxWithCancel: ctx,
+		cancelFunc:    cancel,
 	}
-
-	return c, cancel
 }
 
 // Run starts the crawler for all groups.
@@ -71,7 +71,7 @@ func (c *Crawler) Run() {
 
 			for {
 				select {
-				case <-c.ctx.Done():
+				case <-c.ctxWithCancel.Done():
 					slog.Info("group handler stopped", "group", group.Name)
 					return
 				case <-ticker.C:
@@ -84,14 +84,18 @@ func (c *Crawler) Run() {
 	}
 }
 
-// Stop stops the crawler.
-func (c *Crawler) Stop() {
-	<-c.ctx.Done()
+// Shutdown stops the crawler and waits for all goroutines to finish.
+func (c *Crawler) Shutdown() {
+	c.cancelFunc()
 	c.wg.Wait()
 }
 
 // Get returns the group data.
-func (c *Crawler) Get(groupName string) string {
+func (c *Crawler) Get(groupName string, force bool) string {
+	if force {
+		c.fetchGroup(c.groups[groupName])
+	}
+
 	c.RLock()
 	defer c.RUnlock()
 	return c.result[groupName]
@@ -137,7 +141,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 
 // fetchSubscription fetches the subscription data.
 func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, result chan<- fetchResult) {
-	ctx, cancel := context.WithTimeout(c.ctx, sub.Timeout.Timed())
+	ctx, cancel := context.WithTimeout(c.ctxWithCancel, sub.Timeout.Timed())
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL, nil)

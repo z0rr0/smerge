@@ -28,15 +28,23 @@ func requestID() string {
 	return hex.EncodeToString(bytes)
 }
 
+func parseBool(value string) bool {
+	if v := strings.ToLower(value); v == "true" || v == "1" {
+		return true
+	}
+
+	return false
+}
+
 func Run(config *cfg.Config) {
 	var (
 		serverTimeout = time.Duration(config.Timeout)
 		serverAddr    = config.Addr()
-		groups        = config.GroupsMap()
+		groups        = config.GroupsEndpointsMap()
 	)
 
 	slog.Info("starting crawler", "groups", len(config.Groups))
-	cr, cancel := crawler.New(config.Groups)
+	cr := crawler.New(config.Groups)
 	cr.Run()
 
 	srv := &http.Server{
@@ -71,9 +79,11 @@ func Run(config *cfg.Config) {
 			return
 		}
 
-		data := cr.Get(group.Name)
+		force := parseBool(r.FormValue("force"))
+		data := cr.Get(group.Name, force)
+
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(code)
 
 		if _, err := w.Write([]byte(data)); err != nil {
 			slog.Error("response write error", "id", reqID, "error", err)
@@ -87,10 +97,14 @@ func Run(config *cfg.Config) {
 		<-sigint
 
 		slog.Info("shutting down crawler")
-		cancel()
+		cr.Shutdown()
+		slog.Info("crawler stopped")
 
 		slog.Info("shutting down server")
-		if err := srv.Shutdown(context.Background()); err != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), serverTimeout)
+		defer cancel()
+
+		if err := srv.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
 		}
 		close(idleConnsClosed)
@@ -100,9 +114,6 @@ func Run(config *cfg.Config) {
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("HTTP server ListenAndServe error", "error", err)
 	}
-
-	cr.Stop()
-	slog.Info("crawler stopped")
 
 	<-idleConnsClosed
 	slog.Info("HTTP server stopped")

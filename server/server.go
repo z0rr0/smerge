@@ -40,8 +40,8 @@ func Run(config *cfg.Config) {
 	}
 	serverStopped := make(chan struct{})
 
+	sigint := make(chan os.Signal, 1)
 	go func() {
-		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
 		<-sigint
 
@@ -62,6 +62,7 @@ func Run(config *cfg.Config) {
 	slog.Info("starting server", "addr", serverAddr)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("HTTP server ListenAndServe error", "error", err)
+		sigint <- os.Interrupt
 	}
 
 	<-serverStopped

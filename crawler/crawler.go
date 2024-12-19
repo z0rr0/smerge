@@ -16,6 +16,11 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
+// Getter is an interface for getting data by group name.
+type Getter interface {
+	Get(string, bool) string
+}
+
 // Crawler is a main crawler structure.
 type Crawler struct {
 	sync.RWMutex

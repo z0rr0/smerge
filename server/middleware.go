@@ -111,7 +111,7 @@ func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 }
 
 // handleGroup is a main logic for handling group requests.
-func handleGroup(groups map[string]*cfg.Group, cr *crawler.Crawler) http.HandlerFunc {
+func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := strings.Trim(r.URL.Path, "/ ")
 

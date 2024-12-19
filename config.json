@@ -1,6 +1,7 @@
 {
   "host": "localhost",
   "port": 43210,
+  "user_agent": "SMerge/1.0",
   "timeout": "10s",
   "workers": 1,
   "debug": true,

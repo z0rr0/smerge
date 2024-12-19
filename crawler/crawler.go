@@ -16,13 +16,12 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
-const userAgent = "SMerge/1.0"
-
 // Crawler is a main crawler structure.
 type Crawler struct {
 	sync.RWMutex
 	groups        map[string]*cfg.Group
 	result        map[string]string
+	userAgent     string
 	client        *http.Client
 	ctxWithCancel context.Context
 	cancelFunc    context.CancelFunc
@@ -35,7 +34,7 @@ type fetchResult struct {
 }
 
 // New creates a new crawler instance.
-func New(groups []cfg.Group) *Crawler {
+func New(groups []cfg.Group, userAgent string) *Crawler {
 	n := len(groups)
 	groupsMap := make(map[string]*cfg.Group, n)
 
@@ -44,10 +43,19 @@ func New(groups []cfg.Group) *Crawler {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Crawler{
-		groups:        groupsMap,
-		result:        make(map[string]string, n),
-		client:        &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}},
+		groups:    groupsMap,
+		result:    make(map[string]string, n),
+		userAgent: userAgent,
+		client: &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment, MaxIdleConns: 100,
+				MaxConnsPerHost: 20,
+				IdleConnTimeout: 90 * time.Second,
+			},
+			Timeout: 30 * time.Second,
+		},
 		ctxWithCancel: ctx,
 		cancelFunc:    cancel,
 	}
@@ -61,7 +69,7 @@ func (c *Crawler) Run() {
 		go func(group *cfg.Group) {
 			period := group.Period.Timed()
 			slog.Info("starting group handler", "group", name, "period", period)
-			c.fetchGroup(group) // init fetch
+			c.fetchGroup(group) // 1st init fetch after start
 
 			ticker := time.NewTicker(period)
 			defer func() {
@@ -150,7 +158,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		return
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.userAgent)
 	slog.Debug("fetchSubscription", "group", groupName, "subscription", sub.Name, "url", sub.URL)
 
 	start := time.Now()
@@ -165,6 +173,11 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 			slog.Error("response body close error", "group", groupName, "subscription", sub.Name, "error", e)
 		}
 	}()
+
+	if resp.StatusCode != http.StatusOK {
+		result <- fetchResult{error: fmt.Errorf("response status error: %d", resp.StatusCode)}
+		return
+	}
 
 	var (
 		buf = new(bytes.Buffer)

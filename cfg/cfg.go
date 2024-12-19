@@ -135,11 +135,12 @@ func (g *Group) Validate() error {
 
 // Config is a main configuration structure.
 type Config struct {
-	Host    string   `json:"host"`
-	Port    uint16   `json:"port"`
-	Timeout Duration `json:"timeout"`
-	Debug   bool     `json:"debug"`
-	Groups  []Group  `json:"groups"`
+	Host      string   `json:"host"`
+	Port      uint16   `json:"port"`
+	UserAgent string   `json:"user_agent"`
+	Timeout   Duration `json:"timeout"`
+	Debug     bool     `json:"debug"`
+	Groups    []Group  `json:"groups"`
 }
 
 // Validate checks the configuration for correctness.

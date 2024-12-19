@@ -44,7 +44,7 @@ func Run(config *cfg.Config) {
 	)
 
 	slog.Info("starting crawler", "groups", len(config.Groups))
-	cr := crawler.New(config.Groups)
+	cr := crawler.New(config.Groups, config.UserAgent)
 	cr.Run()
 
 	srv := &http.Server{

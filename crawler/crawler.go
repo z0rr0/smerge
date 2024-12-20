@@ -155,6 +155,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 
 // fetchSubscription fetches the subscription urls.
 func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, result chan<- fetchResult) {
+	const sep = "\n"
 	ctx, cancel := context.WithTimeout(c.ctxWithCancel, sub.Timeout.Timed())
 	defer cancel()
 
@@ -210,7 +211,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		}
 	}
 
-	urls := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
+	urls := strings.Split(strings.ReplaceAll(strings.Trim(buf.String(), sep), "\r\n", sep), sep)
 	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(urls), "bytes", n, "duration", time.Since(start))
 
 	fetchRes.urls = urls

@@ -55,6 +55,8 @@ func main() {
 	}
 
 	initLogger(config.Debug || debug, os.Stdout)
+	slog.Info(name, "version", Version, "revision", Revision, "go", GoVersion, "build", BuildDate)
+
 	server.Run(config)
 	slog.Info("stopped")
 }

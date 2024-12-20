@@ -200,7 +200,7 @@ func (c *Config) GroupsEndpointsMap() map[string]*Group {
 
 // readConfig reads a configuration file from the filesystem.
 func readConfig(filename string) ([]byte, error) {
-	const dockerDir = "/data/conf"
+	const dockerDir = "/data"
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("get current dir: %w", err)

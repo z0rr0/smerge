@@ -23,3 +23,4 @@ RUN chmod 0755 /bin/smerge
 VOLUME ["/data/"]
 EXPOSE 43210
 ENTRYPOINT ["/bin/smerge"]
+CMD ["-config", "/data/config.json"]

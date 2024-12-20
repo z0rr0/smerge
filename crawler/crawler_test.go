@@ -284,8 +284,8 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				if (res.error != nil) != tc.wantErr {
 					t.Errorf("fetchSubscription() error = %v, wantErr %v", res.error, tc.wantErr)
 				}
-				if !tc.wantErr && len(res.data) == 0 {
-					t.Error("fetchSubscription() returned empty data")
+				if !tc.wantErr && len(res.urls) == 0 {
+					t.Error("fetchSubscription() returned empty urls")
 				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("timeout waiting for fetchSubscription")

@@ -34,8 +34,9 @@ type Crawler struct {
 }
 
 type fetchResult struct {
-	data  []string
-	error error
+	subscription string
+	urls         []string
+	error        error
 }
 
 // New creates a new crawler instance.
@@ -128,18 +129,18 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 		go c.fetchSubscription(group.Name, &group.Subscriptions[i], result)
 	}
 
-	subscriptionsItems := make([]string, 0, subscriptionsLen)
+	urls := make([]string, 0, subscriptionsLen)
 	for i := 0; i < subscriptionsLen; i++ {
 		res := <-result
 		if res.error != nil {
-			slog.Error("fetchError", "group", group.Name, "error", res.error)
+			slog.Error("fetchError", "group", group.Name, "subscription", res.subscription, "error", res.error)
 		} else {
-			subscriptionsItems = append(subscriptionsItems, res.data...)
+			urls = append(urls, res.urls...)
 		}
 	}
 
-	sort.Strings(subscriptionsItems)
-	groupSubs := strings.Join(subscriptionsItems, "\n")
+	sort.Strings(urls)
+	groupSubs := strings.Join(urls, "\n")
 
 	if group.Encoded {
 		groupSubs = base64.StdEncoding.EncodeToString([]byte(groupSubs))
@@ -149,17 +150,20 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	c.result[group.Name] = groupSubs
 	c.Unlock()
 
-	slog.Info("fetched", "group", group.Name, "size", len(subscriptionsItems), "len", len(groupSubs), "duration", time.Since(start))
+	slog.Info("fetched", "group", group.Name, "size", len(urls), "len", len(groupSubs), "duration", time.Since(start))
 }
 
-// fetchSubscription fetches the subscription data.
+// fetchSubscription fetches the subscription urls.
 func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, result chan<- fetchResult) {
 	ctx, cancel := context.WithTimeout(c.ctxWithCancel, sub.Timeout.Timed())
 	defer cancel()
 
+	fetchRes := fetchResult{subscription: sub.Name}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL, nil)
 	if err != nil {
-		result <- fetchResult{error: fmt.Errorf("new request error: %w", err)}
+		fetchRes.error = fmt.Errorf("new request error: %w", err)
+		result <- fetchRes
 		return
 	}
 
@@ -169,7 +173,8 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	start := time.Now()
 	resp, err := c.client.Do(req)
 	if err != nil {
-		result <- fetchResult{error: fmt.Errorf("client do error: %w", err)}
+		fetchRes.error = fmt.Errorf("client do error: %w", err)
+		result <- fetchRes
 		return
 	}
 
@@ -180,7 +185,8 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		result <- fetchResult{error: fmt.Errorf("response status error: %d", resp.StatusCode)}
+		fetchRes.error = fmt.Errorf("response status error: %d", resp.StatusCode)
+		result <- fetchRes
 		return
 	}
 
@@ -192,17 +198,21 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	if sub.Encoded {
 		decoder := base64.NewDecoder(base64.StdEncoding, resp.Body)
 		if n, err = buf.ReadFrom(decoder); err != nil {
-			result <- fetchResult{error: fmt.Errorf("read encoded response error: %w", err)}
+			fetchRes.error = fmt.Errorf("read encoded response error: %w", err)
+			result <- fetchRes
 			return
 		}
 	} else {
 		if n, err = io.Copy(buf, resp.Body); err != nil {
-			result <- fetchResult{error: fmt.Errorf("read response error: %w", err)}
+			fetchRes.error = fmt.Errorf("read response error: %w", err)
+			result <- fetchRes
 			return
 		}
 	}
 
-	data := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
-	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(data), "bytes", n, "duration", time.Since(start))
-	result <- fetchResult{data: data}
+	urls := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
+	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(urls), "bytes", n, "duration", time.Since(start))
+
+	fetchRes.urls = urls
+	result <- fetchRes
 }

@@ -1,3 +1,3 @@
 module github.com/z0rr0/smerge
 
-go 1.23.4
+go 1.23

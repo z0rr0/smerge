@@ -26,7 +26,7 @@ Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
       "name": "group1",
       "endpoint": "/group1",
       "encoded": true,
-      "period": "12h",
+      "period": "90m",
       "subscriptions": [
         {
           "name": "subscription1",
@@ -63,7 +63,6 @@ Test coverage:
 
 ```bash
 make test
-
 ...
 ok      github.com/z0rr0/smerge (cached)        coverage: 65.4% of statements
 ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 95.2% of statements
@@ -84,7 +83,11 @@ Usage of ./smerge:
         show version
 ```
 
-Or using docker:
+Or using docker
+
+- directory `data` on host should contain `config.json`
+- port `43210` on host should be free
+- `user` ID can be changed to the current user ID on the host
 
 ```bash
 docker run -d \
@@ -93,8 +96,6 @@ docker run -d \
   -p 43210:43210 \
   -v $(pwd)/data:/data:ro \
   --restart unless-stopped \
-  --log-opt max-size=5m \
-  --log-opt max-file=2 \
   z0rr0/smerge:latest
 ```
 

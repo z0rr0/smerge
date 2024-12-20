@@ -82,7 +82,7 @@ func TestMainVersion(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "smerge:") {
+	if !strings.Contains(output, "SMerge:") {
 		t.Errorf("version output doesn't contain expected text: %s", output)
 	}
 }

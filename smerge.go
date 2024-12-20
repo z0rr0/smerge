@@ -14,18 +14,18 @@ import (
 )
 
 var (
-	// Version is git version
+	// Version is a git version
 	Version = ""
-	// Revision is revision number
+	// Revision is a revision number
 	Revision = ""
-	// BuildDate is build date
+	// BuildDate is a build date
 	BuildDate = ""
-	// GoVersion is runtime Go language version
+	// GoVersion is a runtime Go language version
 	GoVersion = runtime.Version()
 )
 
 func main() {
-	const name = "smerge"
+	const name = "SMerge"
 	var (
 		debug       bool
 		showVersion bool

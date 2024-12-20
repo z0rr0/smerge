@@ -8,6 +8,7 @@ RUN echo "LDFLAGS = $LDFLAGS"
 RUN GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o ./smerge
 
 FROM alpine:3.21
+RUN apk --no-cache add ca-certificates
 LABEL org.opencontainers.image.authors="me@axv.email" \
         org.opencontainers.image.url="https://hub.docker.com/r/z0rr0/smerge" \
         org.opencontainers.image.documentation="https://github.com/z0rr0/smerge" \

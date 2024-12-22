@@ -112,13 +112,17 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) string {
 
 	c.RLock()
 	groupResult := c.result[groupName]
-	group, ok := c.groups[groupName]
+	if decode {
+		group, ok := c.groups[groupName]
+		decode = ok && group.Encoded
+	}
 	c.RUnlock()
 
-	if ok && decode && group.Encoded {
+	if decode {
 		if decoded, err := base64.StdEncoding.DecodeString(groupResult); err != nil {
 			slog.Error("decode error", "group", groupName, "error", err)
 		} else {
+			slog.Debug("decoded", "group", groupName, "size", len(decoded))
 			groupResult = string(decoded)
 		}
 	}

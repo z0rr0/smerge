@@ -222,3 +222,79 @@ func TestErrorHandlingMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestHealthCheckMiddleware(t *testing.T) {
+	tests := []struct {
+		name          string
+		path          string
+		expectedCode  int
+		expectedBody  string
+		expectedCalls int // tracks if the next handler was called
+	}{
+		{
+			name:          "ok",
+			path:          "/ok",
+			expectedCode:  http.StatusOK,
+			expectedBody:  "OK",
+			expectedCalls: 0,
+		},
+		{
+			name:          "trailing slash",
+			path:          "/ok/",
+			expectedCode:  http.StatusOK,
+			expectedBody:  "OK",
+			expectedCalls: 0,
+		},
+		{
+			name:          "non-health check",
+			path:          "/other",
+			expectedCode:  http.StatusOK,
+			expectedBody:  "next handler called",
+			expectedCalls: 1,
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a counter for next handler calls
+			var nextHandlerCalls int
+
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextHandlerCalls++
+				w.WriteHeader(http.StatusOK)
+				if _, err := w.Write([]byte("next handler called")); err != nil {
+					t.Errorf("failed to write response: %v", err)
+				}
+			})
+
+			handler := HealthCheckMiddleware(nextHandler)
+
+			req := httptest.NewRequest("GET", tc.path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tc.expectedCode {
+				t.Errorf("expected status code %d, got %d", tc.expectedCode, rec.Code)
+			}
+
+			if rec.Body.String() != tc.expectedBody {
+				t.Errorf("expected body %q, got %q", tc.expectedBody, rec.Body.String())
+			}
+
+			if nextHandlerCalls != tc.expectedCalls {
+				t.Errorf("expected next handler to be called %d times, got %d", tc.expectedCalls, nextHandlerCalls)
+			}
+
+			// Check Content-Type header for health check path
+			if p := strings.TrimRight(tc.path, "/"); p == "/ok" {
+				contentType := rec.Header().Get("Content-Type")
+				expectedContentType := "text/plain"
+				if contentType != expectedContentType {
+					t.Errorf("expected Content-Type %q, got %q", expectedContentType, contentType)
+				}
+			}
+		})
+	}
+}

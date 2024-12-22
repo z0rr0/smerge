@@ -110,6 +110,25 @@ func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// HealthCheckMiddleware is a middleware that handles health check requests.
+func HealthCheckMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const healthCheckPath = "/ok"
+
+		if strings.TrimRight(r.URL.Path, "/") == healthCheckPath {
+			w.Header().Set("Content-Type", "text/plain")
+
+			if _, err := w.Write([]byte("OK")); err != nil {
+				reqID, _ := GetRequestID(r.Context())
+				slog.Error("response write error", "id", reqID, "error", err)
+			}
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // handleGroup is a main logic for handling group requests.
 func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -127,10 +146,11 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 		}
 
 		force := parseBool(r.FormValue("force"))
-		data := cr.Get(group.Name, force)
+		decode := parseBool(r.FormValue("decode"))
+		groupData := cr.Get(group.Name, force, decode)
 
 		w.Header().Set("Content-Type", "text/plain")
-		if _, err := w.Write([]byte(data)); err != nil {
+		if _, err := w.Write([]byte(groupData)); err != nil {
 			reqID, _ := GetRequestID(r.Context())
 			slog.Error("response write error", "id", reqID, "error", err)
 		}

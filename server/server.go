@@ -27,7 +27,9 @@ func Run(config *cfg.Config) {
 
 	handler := LoggingMiddleware(
 		ErrorHandlingMiddleware(
-			handleGroup(groups, cr),
+			HealthCheckMiddleware(
+				handleGroup(groups, cr),
+			),
 		),
 	)
 

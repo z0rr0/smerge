@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/z0rr0/smerge/cfg"
@@ -12,7 +13,7 @@ type mockCrawler struct {
 	data string
 }
 
-func (m *mockCrawler) Get(_ string, _ bool) string {
+func (m *mockCrawler) Get(_ string, _ bool, _ bool) string {
 	return m.data
 }
 
@@ -30,6 +31,7 @@ func TestHandleGroup(t *testing.T) {
 		method       string
 		path         string
 		force        string
+		decode       string
 		expectedCode int
 		expectedBody string
 	}{
@@ -66,12 +68,21 @@ func TestHandleGroup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url := tt.path
-			if tt.force != "" {
-				url += "?force=" + tt.force
+			u, err := url.Parse(tt.path)
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			req := httptest.NewRequest(tt.method, url, nil)
+			q := u.Query()
+			if tt.force != "" {
+				q.Set("force", tt.force)
+			}
+			if tt.decode != "" {
+				q.Set("decode", tt.decode)
+			}
+
+			u.RawQuery = q.Encode()
+			req := httptest.NewRequest(tt.method, u.String(), nil)
 			rec := httptest.NewRecorder()
 
 			handler := handleGroup(groups, cr)

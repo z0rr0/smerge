@@ -18,7 +18,7 @@ import (
 
 // Getter is an interface for getting data by group name.
 type Getter interface {
-	Get(string, bool) string
+	Get(string, bool, bool) string
 }
 
 // Crawler is a main crawler structure.
@@ -105,14 +105,24 @@ func (c *Crawler) Shutdown() {
 }
 
 // Get returns the group data.
-func (c *Crawler) Get(groupName string, force bool) string {
+func (c *Crawler) Get(groupName string, force bool, decode bool) string {
 	if force {
 		c.fetchGroup(c.groups[groupName])
 	}
 
 	c.RLock()
-	defer c.RUnlock()
-	return c.result[groupName]
+	groupResult, ok := c.result[groupName]
+	c.RUnlock()
+
+	if ok && decode && c.groups[groupName].Encoded {
+		if decoded, err := base64.StdEncoding.DecodeString(groupResult); err != nil {
+			slog.Error("decode error", "group", groupName, "error", err)
+		} else {
+			groupResult = string(decoded)
+		}
+	}
+
+	return groupResult
 }
 
 // fetchGroup fetches all subscriptions for the group.

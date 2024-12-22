@@ -68,6 +68,7 @@ func TestCrawler_Get(t *testing.T) {
 		name     string
 		group    cfg.Group
 		expected string
+		decode   bool
 	}{
 		{
 			name: "basic get",
@@ -92,6 +93,23 @@ func TestCrawler_Get(t *testing.T) {
 				Period:        cfg.Duration(time.Second),
 			},
 		},
+		{
+			name: "decode group",
+			group: cfg.Group{
+				Name:    "test1",
+				Encoded: true,
+				Subscriptions: []cfg.Subscription{
+					{
+						Name:    "sub1",
+						URL:     server.URL,
+						Timeout: cfg.Duration(time.Second),
+					},
+				},
+				Period: cfg.Duration(time.Second),
+			},
+			expected: "line1\nline2",
+			decode:   true,
+		},
 	}
 
 	for i := range tests {
@@ -99,7 +117,7 @@ func TestCrawler_Get(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			c := New([]cfg.Group{tc.group}, userAgent)
-			got := c.Get(tc.group.Name, true)
+			got := c.Get(tc.group.Name, true, tc.decode)
 
 			if got != tc.expected {
 				t.Errorf("got = %v, want %v", got, tc.expected)

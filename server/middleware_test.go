@@ -258,9 +258,7 @@ func TestHealthCheckMiddleware(t *testing.T) {
 		tc := tests[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			// Create a counter for next handler calls
 			var nextHandlerCalls int
-
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextHandlerCalls++
 				w.WriteHeader(http.StatusOK)
@@ -270,7 +268,6 @@ func TestHealthCheckMiddleware(t *testing.T) {
 			})
 
 			handler := HealthCheckMiddleware(nextHandler)
-
 			req := httptest.NewRequest("GET", tc.path, nil)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
@@ -287,7 +284,6 @@ func TestHealthCheckMiddleware(t *testing.T) {
 				t.Errorf("expected next handler to be called %d times, got %d", tc.expectedCalls, nextHandlerCalls)
 			}
 
-			// Check Content-Type header for health check path
 			if p := strings.TrimRight(tc.path, "/"); p == "/ok" {
 				contentType := rec.Header().Get("Content-Type")
 				expectedContentType := "text/plain"

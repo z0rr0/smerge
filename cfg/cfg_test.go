@@ -257,6 +257,48 @@ func TestGroupValidate(t *testing.T) {
 	}
 }
 
+func TestGroupMaxSubscriptionTimeout(t *testing.T) {
+	testCases := []struct {
+		name     string
+		group    Group
+		expected time.Duration
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name: "single subscription",
+			group: Group{
+				Subscriptions: []Subscription{
+					{Timeout: Duration(time.Second)},
+				},
+			},
+			expected: time.Second,
+		},
+		{
+			name: "multiple subscriptions",
+			group: Group{
+				Subscriptions: []Subscription{
+					{Timeout: Duration(time.Millisecond * 100)},
+					{Timeout: Duration(time.Millisecond * 300)},
+					{Timeout: Duration(time.Millisecond * 200)},
+				},
+			},
+			expected: time.Millisecond * 300,
+		},
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			if timeout := tc.group.MaxSubscriptionTimeout(); timeout != tc.expected {
+				t.Errorf("unexpected timeout, got=%v, but expected=%v", timeout, tc.expected)
+			}
+		})
+	}
+}
+
 func TestConfigValidate(t *testing.T) {
 	testCases := []struct {
 		name   string

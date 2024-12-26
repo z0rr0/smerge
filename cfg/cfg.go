@@ -137,8 +137,8 @@ func (g *Group) Validate() error {
 func (g *Group) MaxSubscriptionTimeout() time.Duration {
 	var maxTimeout time.Duration
 
-	for i := range g.Subscriptions {
-		maxTimeout = max(maxTimeout, g.Subscriptions[i].Timeout.Timed())
+	for _, sub := range g.Subscriptions {
+		maxTimeout = max(maxTimeout, sub.Timeout.Timed())
 	}
 
 	return maxTimeout

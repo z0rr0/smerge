@@ -6,6 +6,8 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -350,6 +352,101 @@ func TestCrawler_Shutdown(t *testing.T) {
 		t.Log("shutdown completed")
 	case <-time.After(2 * time.Second):
 		t.Fatal("shutdown did not complete in time")
+	}
+}
+
+func TestReadSubscription(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		encoded     bool
+		wantUrls    []string
+		wantBytes   int64
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "one",
+			input:     "https://example.com",
+			wantUrls:  []string{"https://example.com"},
+			wantBytes: 19,
+		},
+		{
+			name:      "multiple urls",
+			input:     "https://example1.com\nhttps://example2.com\nhttps://example3.com\n",
+			wantUrls:  []string{"https://example1.com", "https://example2.com", "https://example3.com"},
+			wantBytes: 63,
+		},
+		{
+			name:      "multiple urls with windows line endings",
+			input:     "https://example1.com\r\nhttps://example2.com\r\nhttps://example3.com",
+			wantUrls:  []string{"https://example1.com", "https://example2.com", "https://example3.com"},
+			wantBytes: 64,
+		},
+		{
+			name:      "simple encoded",
+			input:     base64.StdEncoding.EncodeToString([]byte("https://example.com")),
+			encoded:   true,
+			wantUrls:  []string{"https://example.com"},
+			wantBytes: 19,
+		},
+		{
+			name: "multiple urls encoded",
+			input: base64.StdEncoding.EncodeToString([]byte("https://example1.com\n" +
+				"https://example2.com\n" +
+				"https://example3.com")),
+			encoded:   true,
+			wantUrls:  []string{"https://example1.com", "https://example2.com", "https://example3.com"},
+			wantBytes: 62,
+			wantErr:   false,
+		},
+		{
+			name:        "invalid base64 input",
+			input:       "invalid base64!@#$",
+			encoded:     true,
+			wantErr:     true,
+			errContains: "read encoded response error",
+		},
+		{
+			name:     "empty input",
+			input:    "",
+			wantUrls: []string{""},
+		},
+		{
+			name:     "empty encoded input",
+			input:    base64.StdEncoding.EncodeToString([]byte("")),
+			encoded:  true,
+			wantUrls: []string{""},
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			reader := strings.NewReader(tc.input)
+			gotUrls, gotBytes, err := readSubscription(reader, tc.encoded)
+
+			if err != nil {
+				if !tc.wantErr {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+
+				if e := err.Error(); tc.errContains != "" && !strings.Contains(e, tc.errContains) {
+					t.Errorf("error = %v, want error containing %v", e, tc.errContains)
+				}
+				return
+			}
+
+			if !slices.Equal(gotUrls, tc.wantUrls) {
+				t.Errorf("gotUrls = %v, want %v", gotUrls, tc.wantUrls)
+			}
+
+			if gotBytes != tc.wantBytes {
+				t.Errorf("gotBytes = %v, want %v", gotBytes, tc.wantBytes)
+			}
+		})
 	}
 }
 

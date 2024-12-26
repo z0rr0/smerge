@@ -133,6 +133,17 @@ func (g *Group) Validate() error {
 	return nil
 }
 
+// MaxSubscriptionTimeout returns the maximum timeout of all subscriptions in the group.
+func (g *Group) MaxSubscriptionTimeout() time.Duration {
+	var maxTimeout time.Duration
+
+	for i := range g.Subscriptions {
+		maxTimeout = max(maxTimeout, g.Subscriptions[i].Timeout.Timed())
+	}
+
+	return maxTimeout
+}
+
 // Config is a main configuration structure.
 type Config struct {
 	Host      string   `json:"host"`

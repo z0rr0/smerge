@@ -20,6 +20,8 @@ import (
 const lineSep = "\n"
 
 // Getter is an interface for getting data by group name.
+// If force is true, the data will be fetched from the source.
+// If decode is true, the data will be decoded from base64 if request group has Encoded flag.
 type Getter interface {
 	Get(groupName string, force bool, decode bool) string
 }

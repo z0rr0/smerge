@@ -11,14 +11,24 @@ import (
 	"time"
 )
 
+var (
+	// acceptedTrue is a map of accepted true values.
+	acceptedTrue = map[string]struct{}{"true": {}, "1": {}, "yes": {}, "on": {}, "enabled": {}, "t": {}, "y": {}}
+)
+
+// ctxKey is a type for context key.
 type ctxKey string
 
-const requestIDKey ctxKey = "request_id"
+// requestIDKey is a key for request ID in context.
+const requestIDKey ctxKey = "requestIDKey"
 
 // GetRequestID returns request ID from context.
 func GetRequestID(ctx context.Context) (string, bool) {
-	id, ok := ctx.Value(requestIDKey).(string)
-	return id, ok
+	if reqID, ok := ctx.Value(requestIDKey).(string); ok {
+		return reqID, ok
+	}
+
+	return "", false
 }
 
 // requestID generates a new request ID. It uses 16 bytes of random data or current nanoseconds timestamp as a fallback.
@@ -33,11 +43,8 @@ func requestID() string {
 }
 
 // parseBool converts string value to boolean.
-// Accepted values: true, 1, yes, on.
+// Accepted values: true, 1, yes, on, enabled, t, y.
 func parseBool(value string) bool {
-	if v := strings.ToLower(value); v == "true" || v == "1" || v == "yes" || v == "on" {
-		return true
-	}
-
-	return false
+	_, ok := acceptedTrue[strings.ToLower(value)]
+	return ok
 }

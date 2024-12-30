@@ -13,8 +13,8 @@ type mockCrawler struct {
 	data string
 }
 
-func (m *mockCrawler) Get(_ string, _ bool, _ bool) string {
-	return m.data
+func (m *mockCrawler) Get(_ string, _ bool, _ bool) []byte {
+	return []byte(m.data)
 }
 
 func TestHandleGroup(t *testing.T) {

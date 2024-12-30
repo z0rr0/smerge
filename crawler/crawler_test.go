@@ -3,6 +3,7 @@ package crawler
 
 import (
 	"encoding/base64"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -69,7 +70,7 @@ func TestCrawler_Get(t *testing.T) {
 	tests := []struct {
 		name     string
 		group    cfg.Group
-		expected string
+		expected []byte
 		decode   bool
 	}{
 		{
@@ -85,7 +86,7 @@ func TestCrawler_Get(t *testing.T) {
 				},
 				Period: cfg.Duration(time.Second),
 			},
-			expected: "line1\nline2",
+			expected: []byte("line1\nline2"),
 		},
 		{
 			name: "empty group",
@@ -109,7 +110,7 @@ func TestCrawler_Get(t *testing.T) {
 				},
 				Period: cfg.Duration(time.Second),
 			},
-			expected: "line1\nline2",
+			expected: []byte("line1\nline2"),
 			decode:   true,
 		},
 	}
@@ -121,11 +122,26 @@ func TestCrawler_Get(t *testing.T) {
 			c := New([]cfg.Group{tc.group}, userAgent)
 			got := c.Get(tc.group.Name, true, tc.decode)
 
-			if got != tc.expected {
+			if !slices.Equal(got, tc.expected) {
 				t.Errorf("got = %v, want %v", got, tc.expected)
 			}
 		})
 	}
+}
+
+// compareResults compares two maps of strings to byte slices.
+func compareResults(got, want map[string][]byte) error {
+	if n, m := len(got), len(want); n != m {
+		return fmt.Errorf("result length mismatch got = %v, want %v", n, m)
+	}
+
+	for k, v := range got {
+		if !slices.Equal(v, want[k]) {
+			return fmt.Errorf("got = %v, want %v", v, want[k])
+		}
+	}
+
+	return nil
 }
 
 func TestCrawler_Run(t *testing.T) {
@@ -143,7 +159,7 @@ func TestCrawler_Run(t *testing.T) {
 		name           string
 		group          cfg.Group
 		expectedCalls  int
-		expectedResult map[string]string
+		expectedResult map[string][]byte
 	}{
 		{
 			name: "single call",
@@ -159,7 +175,7 @@ func TestCrawler_Run(t *testing.T) {
 				Period: cfg.Duration(25 * time.Millisecond),
 			},
 			expectedCalls:  2,
-			expectedResult: map[string]string{"group1": "line1\nline2"},
+			expectedResult: map[string][]byte{"group1": []byte("line1\nline2")},
 		},
 		{
 			name: "multiple subscriptions",
@@ -180,7 +196,7 @@ func TestCrawler_Run(t *testing.T) {
 				Period: cfg.Duration(25 * time.Millisecond),
 			},
 			expectedCalls:  4,
-			expectedResult: map[string]string{"group2": "line1\nline1\nline2\nline2"},
+			expectedResult: map[string][]byte{"group2": []byte("line1\nline1\nline2\nline2")},
 		},
 	}
 
@@ -210,8 +226,10 @@ func TestCrawler_Run(t *testing.T) {
 			result := maps.Clone(c.result)
 			c.RUnlock()
 
-			if !maps.Equal(result, tc.expectedResult) {
-				t.Errorf("got = %v, want %v", c.result, tc.expectedResult)
+			maps.Keys(result)
+
+			if err := compareResults(result, tc.expectedResult); err != nil {
+				t.Error(err)
 			}
 
 			c.Shutdown()

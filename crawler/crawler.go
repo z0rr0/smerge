@@ -23,14 +23,14 @@ const lineSep = "\n"
 // If force is true, the data will be fetched from the source.
 // If decode is true, the data will be decoded from base64 if request group has Encoded flag.
 type Getter interface {
-	Get(groupName string, force bool, decode bool) string
+	Get(groupName string, force bool, decode bool) []byte
 }
 
 // Crawler is a main crawler structure.
 type Crawler struct {
 	sync.RWMutex
 	groups        map[string]*cfg.Group
-	result        map[string]string
+	result        map[string][]byte
 	userAgent     string
 	client        *http.Client
 	ctxWithCancel context.Context
@@ -63,7 +63,7 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 
 	return &Crawler{
 		groups:    groupsMap,
-		result:    make(map[string]string, groupLen),
+		result:    make(map[string][]byte, groupLen),
 		userAgent: userAgent,
 		client: &http.Client{
 			Transport: &http.Transport{
@@ -117,25 +117,27 @@ func (c *Crawler) Shutdown() {
 }
 
 // Get returns the group data.
-func (c *Crawler) Get(groupName string, force bool, decode bool) string {
+func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 	if force {
 		c.fetchGroup(c.groups[groupName])
 	}
 
 	c.RLock()
 	groupResult := c.result[groupName]
-	if decode && groupResult != "" {
+	if decode && len(groupResult) != 0 {
 		group, ok := c.groups[groupName]
 		decode = ok && group.Encoded
 	}
 	c.RUnlock()
 
 	if decode {
-		if decoded, err := base64.StdEncoding.DecodeString(groupResult); err != nil {
+		dst := make([]byte, base64.StdEncoding.DecodedLen(len(groupResult)))
+
+		if n, err := base64.StdEncoding.Decode(dst, groupResult); err != nil {
 			slog.Error("decode error", "group", groupName, "error", err)
 		} else {
-			slog.Debug("decoded", "group", groupName, "size", len(decoded))
-			groupResult = string(decoded)
+			slog.Debug("decoded", "group", groupName, "size", n)
+			groupResult = dst[:n]
 		}
 	}
 
@@ -169,13 +171,16 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 
 	sort.Strings(urls)
 	groupSubs := strings.Join(urls, lineSep)
+	groupData := []byte(groupSubs)
 
 	if group.Encoded {
-		groupSubs = base64.StdEncoding.EncodeToString([]byte(groupSubs))
+		dst := make([]byte, base64.StdEncoding.EncodedLen(len(groupData)))
+		base64.StdEncoding.Encode(dst, groupData)
+		groupData = dst
 	}
 
 	c.Lock()
-	c.result[group.Name] = groupSubs
+	c.result[group.Name] = groupData
 	c.Unlock()
 
 	slog.Info("fetched", "group", group.Name, "size", len(urls), "len", len(groupSubs), "duration", time.Since(start))

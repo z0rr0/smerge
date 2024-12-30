@@ -150,13 +150,13 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 		groupData := cr.Get(group.Name, force, decode)
 
 		w.Header().Set("Content-Type", "text/plain")
-		if _, err := w.Write([]byte(groupData)); err != nil {
+		if _, err := w.Write(groupData); err != nil {
 			reqID, exists := GetRequestID(r.Context())
 			if !exists {
 				reqID = "unknown"
 				slog.Warn("request id not found", "method", r.Method, "path", r.URL.Path)
 			}
-			
+
 			slog.Error("response write error", "id", reqID, "error", err)
 		}
 	}

@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -66,21 +68,24 @@ func TestParseBool(t *testing.T) {
 		value string
 		want  bool
 	}{
-		{"empty string", "", false},
-		{"true", "true", true},
-		{"True", "True", true},
-		{"TRUE", "TRUE", true},
-		{"1", "1", true},
-		{"yes", "yes", true},
-		{"YES", "YES", true},
-		{"on", "on", true},
-		{"ON", "ON", true},
-		{"false", "false", false},
-		{"False", "False", false},
-		{"0", "0", false},
-		{"no", "no", false},
-		{"off", "off", false},
-		{"random string", "random", false},
+		{name: "empty string"},
+		{name: "true", value: "true", want: true},
+		{name: "True", value: "True", want: true},
+		{name: "t", value: "t", want: true},
+		{name: "TRUE", value: "TRUE", want: true},
+		{name: "1", value: "1", want: true},
+		{name: "yes", value: "yes", want: true},
+		{name: "y", value: "y", want: true},
+		{name: "YES", value: "YES", want: true},
+		{name: "on", value: "on", want: true},
+		{name: "ON", value: "ON", want: true},
+		{name: "false", value: "false"},
+		{name: "False", value: "False"},
+		{name: "0", value: "0"},
+		{name: "no", value: "no"},
+		{name: "off", value: "off"},
+		{name: "random string", value: "random"},
+		{name: "random number", value: "123"},
 	}
 
 	for i := range tests {
@@ -88,6 +93,63 @@ func TestParseBool(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := parseBool(tc.value); got != tc.want {
 				t.Errorf("got = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRemoteAddress(t *testing.T) {
+	tests := []struct {
+		name       string
+		request    *http.Request
+		withHeader bool
+		header     string
+		remoteAddr string
+		expected   string
+	}{
+		{
+			name:       "nil request",
+			header:     "192.168.1.1",
+			remoteAddr: "192.168.1.2:1234",
+			expected:   "",
+		},
+		{
+			name:       "with header",
+			request:    httptest.NewRequest("GET", "/", nil),
+			withHeader: true,
+			header:     "192.168.1.1",
+			remoteAddr: "192.168.1.2:1234",
+			expected:   "192.168.1.1",
+		},
+		{
+			name:       "no header",
+			request:    httptest.NewRequest("GET", "/", nil),
+			remoteAddr: "192.168.1.2:1234",
+			expected:   "192.168.1.2:1234",
+		},
+		{
+			name:       "empty header",
+			request:    httptest.NewRequest("GET", "/", nil),
+			withHeader: true,
+			header:     "",
+			remoteAddr: "192.168.1.2:1234",
+			expected:   "192.168.1.2:1234",
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.request != nil {
+				if tc.withHeader {
+					tc.request.Header.Set("X-Real-IP", tc.header)
+				}
+				tc.request.RemoteAddr = tc.remoteAddr
+			}
+
+			if got := remoteAddress(tc.request); got != tc.expected {
+				t.Errorf("got %v, expected %v", got, tc.expected)
 			}
 		})
 	}

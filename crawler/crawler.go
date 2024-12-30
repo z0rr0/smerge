@@ -29,13 +29,13 @@ type Getter interface {
 // Crawler is a main crawler structure.
 type Crawler struct {
 	sync.RWMutex
-	groups        map[string]*cfg.Group
-	result        map[string][]byte
-	userAgent     string
-	client        *http.Client
-	ctxWithCancel context.Context
-	cancelFunc    context.CancelFunc
-	wg            sync.WaitGroup
+	groups     map[string]*cfg.Group
+	result     map[string][]byte
+	userAgent  string
+	client     *http.Client
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 type fetchResult struct {
@@ -46,7 +46,10 @@ type fetchResult struct {
 
 // New creates a new crawler instance.
 func New(groups []cfg.Group, userAgent string) *Crawler {
-	const maxConnectionsPerHost = 100
+	const (
+		maxConnectionsPerHost = 100
+		maxIdleConnections    = 1000
+	)
 	var (
 		timeout   time.Duration
 		groupLen  = len(groups)
@@ -68,15 +71,15 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 		client: &http.Client{
 			Transport: &http.Transport{
 				Proxy:             http.ProxyFromEnvironment,
-				MaxIdleConns:      maxConnectionsPerHost * 5,
+				MaxIdleConns:      maxIdleConnections,
 				MaxConnsPerHost:   maxConnectionsPerHost,
 				IdleConnTimeout:   timeout * 3,
 				ForceAttemptHTTP2: true,
 			},
 			Timeout: timeout,
 		},
-		ctxWithCancel: ctx,
-		cancelFunc:    cancel,
+		ctx:        ctx,
+		cancelFunc: cancel,
 	}
 }
 
@@ -98,7 +101,7 @@ func (c *Crawler) Run() {
 
 			for {
 				select {
-				case <-c.ctxWithCancel.Done():
+				case <-c.ctx.Done():
 					slog.Info("group handler stopped", "group", group.Name)
 					return
 				case <-ticker.C:
@@ -189,7 +192,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 
 // fetchSubscription fetches the subscription urls.
 func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, result chan<- fetchResult) {
-	ctx, cancel := context.WithTimeout(c.ctxWithCancel, sub.Timeout.Timed())
+	ctx, cancel := context.WithTimeout(c.ctx, sub.Timeout.Timed())
 	defer cancel()
 
 	fetchRes := fetchResult{subscription: sub.Name}

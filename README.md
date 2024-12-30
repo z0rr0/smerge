@@ -4,14 +4,14 @@
 ![Version](https://img.shields.io/github/tag/z0rr0/smerge.svg)
 ![License](https://img.shields.io/github/license/z0rr0/smerge.svg)
 
-Subscriptions merge tool. 
+Subscriptions merge tool.
 
 It's a web service that joins data from multiple stealth proxy subscriptions and provides it in a single endpoint.
 It can decode and encode data in base64 format and supports groups update periods.
 
 ## Configuration
 
-Simple JSON configuration file with groups and subscriptions. 
+Simple JSON configuration file with groups and subscriptions.
 Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
 
 ```json
@@ -45,6 +45,7 @@ Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
   ]
 }
 ```
+
 `Encoded` is a flag what means that subscription data is encoded in base64.
 
 ## Build
@@ -64,10 +65,10 @@ Test coverage:
 ```bash
 make test
 ...
-ok      github.com/z0rr0/smerge (cached)        coverage: 65.4% of statements
-ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 95.2% of statements
-ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 87.4% of statements
-ok      github.com/z0rr0/smerge/server  (cached)        coverage: 94.3% of statements
+ok      github.com/z0rr0/smerge         (cached)        coverage: 65.4% of statements
+ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 95.4% of statements
+ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 92.5% of statements
+ok      github.com/z0rr0/smerge/server  (cached)        coverage: 90.7% of statements
 ```
 
 ## Run

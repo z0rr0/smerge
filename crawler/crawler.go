@@ -124,7 +124,7 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) string {
 
 	c.RLock()
 	groupResult := c.result[groupName]
-	if decode && (len(groupResult) > 0) {
+	if decode && groupResult != "" {
 		group, ok := c.groups[groupName]
 		decode = ok && group.Encoded
 	}

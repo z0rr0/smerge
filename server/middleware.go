@@ -72,7 +72,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			slog.String("id", reqID),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
-			slog.String("remote_addr", r.RemoteAddr),
+			slog.String("remote_addr", remoteAddress(r)),
 			slog.Int("status", wrappedWriter.status),
 			slog.Duration("duration", duration),
 		}

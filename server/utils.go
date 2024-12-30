@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"io"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -47,4 +48,19 @@ func requestID() string {
 func parseBool(value string) bool {
 	_, ok := acceptedTrue[strings.ToLower(value)]
 	return ok
+}
+
+// remoteAddress returns remote address from request.
+func remoteAddress(r *http.Request) string {
+	const httpIPHeader = "X-Real-IP"
+
+	if r == nil {
+		return ""
+	}
+
+	if ra := r.Header.Get(httpIPHeader); ra != "" {
+		return ra
+	}
+
+	return r.RemoteAddr
 }

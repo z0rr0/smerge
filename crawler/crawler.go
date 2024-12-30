@@ -67,10 +67,11 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 		userAgent: userAgent,
 		client: &http.Client{
 			Transport: &http.Transport{
-				Proxy:           http.ProxyFromEnvironment,
-				MaxIdleConns:    maxConnectionsPerHost * 5,
-				MaxConnsPerHost: maxConnectionsPerHost,
-				IdleConnTimeout: timeout * 3,
+				Proxy:             http.ProxyFromEnvironment,
+				MaxIdleConns:      maxConnectionsPerHost * 5,
+				MaxConnsPerHost:   maxConnectionsPerHost,
+				IdleConnTimeout:   timeout * 3,
+				ForceAttemptHTTP2: true,
 			},
 			Timeout: timeout,
 		},
@@ -116,6 +117,17 @@ func (c *Crawler) Shutdown() {
 	c.wg.Wait()
 }
 
+// needDecode checks if the group data needs to be decoded.
+// A caller should hold the read lock.
+func (c *Crawler) needDecode(groupName string, decode bool, resultSize int) bool {
+	if !(decode && resultSize != 0) {
+		return false
+	}
+
+	group, ok := c.groups[groupName]
+	return ok && group.Encoded
+}
+
 // Get returns the group data.
 func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 	if force {
@@ -124,14 +136,12 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 
 	c.RLock()
 	groupResult := c.result[groupName]
-	if decode && len(groupResult) != 0 {
-		group, ok := c.groups[groupName]
-		decode = ok && group.Encoded
-	}
+	resultSize := len(groupResult)
+	decode = c.needDecode(groupName, decode, resultSize)
 	c.RUnlock()
 
 	if decode {
-		dst := make([]byte, base64.StdEncoding.DecodedLen(len(groupResult)))
+		dst := make([]byte, base64.StdEncoding.DecodedLen(resultSize))
 
 		if n, err := base64.StdEncoding.Decode(dst, groupResult); err != nil {
 			slog.Error("decode error", "group", groupName, "error", err)
@@ -168,22 +178,13 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 			urls = append(urls, res.urls...)
 		}
 	}
-
-	sort.Strings(urls)
-	groupSubs := strings.Join(urls, lineSep)
-	groupData := []byte(groupSubs)
-
-	if group.Encoded {
-		dst := make([]byte, base64.StdEncoding.EncodedLen(len(groupData)))
-		base64.StdEncoding.Encode(dst, groupData)
-		groupData = dst
-	}
+	groupResult := prepareGroupResult(urls, group.Encoded)
 
 	c.Lock()
-	c.result[group.Name] = groupData
+	c.result[group.Name] = groupResult
 	c.Unlock()
 
-	slog.Info("fetched", "group", group.Name, "size", len(urls), "len", len(groupSubs), "duration", time.Since(start))
+	slog.Info("fetched", "group", group.Name, "urls", len(urls), "bytes", len(groupResult), "duration", time.Since(start))
 }
 
 // fetchSubscription fetches the subscription urls.
@@ -254,4 +255,18 @@ func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 
 	urls := strings.Split(strings.ReplaceAll(strings.Trim(buf.String(), lineSep), "\r\n", lineSep), lineSep)
 	return urls, n, nil
+}
+
+// prepareGroupResult prepares the group result for storing.
+func prepareGroupResult(urls []string, encoded bool) []byte {
+	sort.Strings(urls)
+	groupResult := []byte(strings.Join(urls, lineSep))
+
+	if encoded {
+		dst := make([]byte, base64.StdEncoding.EncodedLen(len(groupResult)))
+		base64.StdEncoding.Encode(dst, groupResult)
+		groupResult = dst
+	}
+
+	return groupResult
 }

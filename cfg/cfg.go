@@ -197,8 +197,8 @@ func (c *Config) Addr() string {
 	return net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 }
 
-// GroupsEndpointsMap returns a map of groups by their endpoints.
-func (c *Config) GroupsEndpointsMap() map[string]*Group {
+// GroupsEndpoints returns a map of groups by their endpoints.
+func (c *Config) GroupsEndpoints() map[string]*Group {
 	var groups = make(map[string]*Group, len(c.Groups))
 
 	for i := range c.Groups {

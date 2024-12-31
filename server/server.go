@@ -16,9 +16,9 @@ import (
 
 func Run(config *cfg.Config) {
 	var (
-		serverTimeout = time.Duration(config.Timeout)
-		serverAddr    = config.Addr()
-		groups        = config.GroupsEndpointsMap()
+		serverTimeout   = time.Duration(config.Timeout)
+		serverAddr      = config.Addr()
+		groupsEndpoints = config.GroupsEndpoints()
 	)
 
 	slog.Info("starting crawler", "groups", len(config.Groups))
@@ -27,8 +27,10 @@ func Run(config *cfg.Config) {
 
 	handler := LoggingMiddleware(
 		ErrorHandlingMiddleware(
-			HealthCheckMiddleware(
-				handleGroup(groups, cr),
+			ValidationMiddleware(
+				HealthCheckMiddleware(
+					handleGroup(groupsEndpoints, cr),
+				),
 			),
 		),
 	)
@@ -38,7 +40,7 @@ func Run(config *cfg.Config) {
 		Handler:        handler,
 		ReadTimeout:    serverTimeout,
 		WriteTimeout:   serverTimeout,
-		MaxHeaderBytes: 1 << 10, // 1Kb
+		MaxHeaderBytes: 1 << 16, // 64Kb
 	}
 	serverStopped := make(chan struct{})
 

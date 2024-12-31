@@ -476,7 +476,7 @@ func TestConfigGroupsEndpointsMap(t *testing.T) {
 		"group2": &groups[1],
 	}
 
-	if configGroups := config.GroupsEndpointsMap(); !maps.Equal(configGroups, expected) {
+	if configGroups := config.GroupsEndpoints(); !maps.Equal(configGroups, expected) {
 		t.Errorf("unexpected groups map, got=%v, but expected=%v", configGroups, expected)
 	}
 }

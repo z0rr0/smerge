@@ -294,3 +294,47 @@ func TestHealthCheckMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestValidationMiddleware(t *testing.T) {
+	tests := []struct {
+		name         string
+		method       string
+		expectedCode int
+	}{
+		{
+			name:         "allowed",
+			method:       http.MethodGet,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "disallowed POST",
+			method:       http.MethodPost,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+		{
+			name:         "disallowed PUT",
+			method:       http.MethodPut,
+			expectedCode: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "/test", nil)
+			rec := httptest.NewRecorder()
+
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := ValidationMiddleware(nextHandler)
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tc.expectedCode {
+				t.Errorf("got status code %d, want %d", rec.Code, tc.expectedCode)
+			}
+		})
+	}
+}

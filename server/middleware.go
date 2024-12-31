@@ -110,6 +110,17 @@ func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// ValidationMiddleware is a middleware that handles validation of HTTP methods.
+func ValidationMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // HealthCheckMiddleware is a middleware that handles health check requests.
 func HealthCheckMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,12 +144,6 @@ func HealthCheckMiddleware(next http.Handler) http.Handler {
 func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := strings.Trim(r.URL.Path, "/ ")
-
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
 		group, ok := groups[url]
 		if !ok {
 			http.Error(w, "Not Found", http.StatusNotFound)

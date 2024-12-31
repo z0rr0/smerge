@@ -57,13 +57,6 @@ func TestHandleGroup(t *testing.T) {
 			expectedCode: http.StatusNotFound,
 			expectedBody: "Not Found\n",
 		},
-		{
-			name:         "wrong method",
-			method:       "POST",
-			path:         "/test",
-			expectedCode: http.StatusMethodNotAllowed,
-			expectedBody: "Method Not Allowed\n",
-		},
 	}
 
 	for _, tt := range tests {

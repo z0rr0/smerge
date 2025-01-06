@@ -164,6 +164,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 		result           = make(chan fetchResult)
 		start            = time.Now()
 		subscriptionsLen = len(group.Subscriptions)
+		avgURLsLen       = subscriptionsLen * avgSubURLs
 	)
 	defer close(result)
 	slog.Info("fetchGroup", "group", group.Name, "subscriptions", subscriptionsLen)
@@ -172,10 +173,9 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 		go c.fetchSubscription(group.Name, &group.Subscriptions[i], result)
 	}
 
-	urls := make([]string, 0, subscriptionsLen*avgSubURLs)
+	urls := make([]string, 0, avgURLsLen)
 	for i := 0; i < subscriptionsLen; i++ {
-		res := <-result
-		if res.error != nil {
+		if res := <-result; res.error != nil {
 			slog.Error("fetchError", "group", group.Name, "subscription", res.subscription, "error", res.error)
 		} else {
 			urls = append(urls, res.urls...)
@@ -192,14 +192,18 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 
 // fetchSubscription fetches the subscription urls.
 func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, result chan<- fetchResult) {
-	ctx, cancel := context.WithTimeout(c.ctx, sub.Timeout.Timed())
-	defer cancel()
+	var (
+		fetchRes    = fetchResult{subscription: sub.Name}
+		ctx, cancel = context.WithTimeout(c.ctx, sub.Timeout.Timed())
+	)
+	defer func() {
+		cancel()
+		result <- fetchRes
+	}()
 
-	fetchRes := fetchResult{subscription: sub.Name}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL, nil)
 	if err != nil {
 		fetchRes.error = fmt.Errorf("new request error: %w", err)
-		result <- fetchRes
 		return
 	}
 
@@ -210,7 +214,6 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	resp, err := c.client.Do(req)
 	if err != nil {
 		fetchRes.error = fmt.Errorf("client do error: %w", err)
-		result <- fetchRes
 		return
 	}
 
@@ -222,19 +225,17 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 
 	if resp.StatusCode != http.StatusOK {
 		fetchRes.error = fmt.Errorf("response status error: %d", resp.StatusCode)
-		result <- fetchRes
 		return
 	}
 
 	urls, n, err := readSubscription(resp.Body, sub.Encoded)
 	if err != nil {
-		fetchRes.error = err
-		result <- fetchRes
+		fetchRes.error = fmt.Errorf("read subscription error: %w", err)
+		return
 	}
 
 	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(urls), "bytes", n, "duration", time.Since(start))
 	fetchRes.urls = urls
-	result <- fetchRes
 }
 
 // readSubscription reads the subscription data from the reader (HTTP response body).
@@ -256,6 +257,7 @@ func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 		}
 	}
 
+	// trim result, use one type of line separator
 	urls := strings.Split(strings.ReplaceAll(strings.Trim(buf.String(), lineSep), "\r\n", lineSep), lineSep)
 	return urls, n, nil
 }

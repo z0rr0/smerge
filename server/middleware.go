@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/z0rr0/smerge/cfg"
@@ -15,9 +16,9 @@ import (
 // responseWriter is a wrapper around http.ResponseWriter that captures the status code.
 type responseWriter struct {
 	http.ResponseWriter
-	wroteHeader bool
+	wroteHeader atomic.Bool
+	written     atomic.Int64
 	status      int
-	written     int64
 }
 
 func wrapResponseWriter(w http.ResponseWriter) *responseWriter {
@@ -28,24 +29,24 @@ func wrapResponseWriter(w http.ResponseWriter) *responseWriter {
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
-	if rw.wroteHeader {
-		return
+	if swapped := rw.wroteHeader.CompareAndSwap(false, true); !swapped {
+		return // already written
 	}
 
 	rw.status = code
-	rw.wroteHeader = true
 	rw.ResponseWriter.WriteHeader(code)
 }
 
 func (rw *responseWriter) Write(b []byte) (int, error) {
-	if !rw.wroteHeader {
-		rw.WriteHeader(http.StatusOK)
+	rw.WriteHeader(http.StatusOK) // will be ignored if any other status code was set before
+	n, err := rw.ResponseWriter.Write(b)
+
+	if err != nil {
+		return n, err
 	}
 
-	n, err := rw.ResponseWriter.Write(b)
-	rw.written += int64(n)
-
-	return n, err
+	rw.written.Add(int64(n))
+	return n, nil
 }
 
 // LoggingMiddleware creates a middleware that logs incoming requests and their duration

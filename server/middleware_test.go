@@ -74,8 +74,8 @@ func TestResponseWriter(t *testing.T) {
 			}
 
 			// count written bytes
-			if n := int64(len(tc.expectBody)); wrapped.written != n {
-				t.Errorf("got written bytes %d, want %d", wrapped.written, n)
+			if n, m := int64(len(tc.expectBody)), wrapped.written.Load(); m != n {
+				t.Errorf("got written bytes %d, want %d", m, n)
 			}
 		})
 	}

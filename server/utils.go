@@ -14,7 +14,7 @@ import (
 
 var (
 	// acceptedTrue is a map of accepted true values.
-	acceptedTrue = map[string]struct{}{"true": {}, "1": {}, "yes": {}, "on": {}, "enabled": {}, "t": {}, "y": {}}
+	acceptedTrue = map[string]struct{}{"true": {}, "t": {}, "yes": {}, "y": {}, "on": {}, "enabled": {}, "1": {}}
 )
 
 // ctxKey is a type for context key.

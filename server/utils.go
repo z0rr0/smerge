@@ -20,20 +20,20 @@ var (
 // ctxKey is a type for context key.
 type ctxKey string
 
-// requestIDKey is a key for request ID in context.
-const requestIDKey ctxKey = "requestIDKey"
+// requestID is a key for request ID in context.
+const requestID ctxKey = "requestID"
 
 // GetRequestID returns request ID from context.
 func GetRequestID(ctx context.Context) (string, bool) {
-	if reqID, ok := ctx.Value(requestIDKey).(string); ok {
+	if reqID, ok := ctx.Value(requestID).(string); ok {
 		return reqID, ok
 	}
 
 	return "", false
 }
 
-// requestID generates a new request ID. It uses 16 bytes of random data or current nanoseconds timestamp as a fallback.
-func requestID() string {
+// generateRequestID generates a new request ID. It uses 16 bytes of random data or current nanoseconds timestamp as a fallback.
+func generateRequestID() string {
 	var bytes = make([]byte, 16)
 
 	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {

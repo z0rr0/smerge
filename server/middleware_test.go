@@ -176,6 +176,47 @@ func TestLoggingMiddleware(t *testing.T) {
 	}
 }
 
+type negativeResponseWriter struct {
+	statusCode int
+	header     http.Header
+}
+
+func (nrw *negativeResponseWriter) Header() http.Header {
+	nrw.header = make(http.Header)
+	return nrw.header
+}
+
+func (nrw *negativeResponseWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("write error")
+}
+
+func (nrw *negativeResponseWriter) WriteHeader(statusCode int) {
+	nrw.statusCode = statusCode
+}
+
+func TestNegativeErrorHandlingMiddleware(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("test panic")
+	})
+	handler := ErrorHandlingMiddleware(nextHandler)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := new(negativeResponseWriter)
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("handler let panic escape: %v", r)
+			}
+		}()
+		handler.ServeHTTP(w, req)
+	}()
+
+	if w.statusCode != http.StatusInternalServerError {
+		t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, w.statusCode)
+	}
+}
+
 func TestErrorHandlingMiddleware(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -220,6 +261,24 @@ func TestErrorHandlingMiddleware(t *testing.T) {
 				t.Errorf("got status code %d, want %d", rec.Code, tc.expectedCode)
 			}
 		})
+	}
+}
+
+func TestNegativeHealthCheckMiddleware(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte("next handler called")); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	})
+
+	handler := HealthCheckMiddleware(nextHandler)
+	req := httptest.NewRequest("GET", "/ok", nil)
+	w := new(negativeResponseWriter)
+	handler.ServeHTTP(w, req)
+
+	if ct := w.header.Get("Content-Type"); ct != "text/plain" {
+		t.Errorf("expected Content-Type %q, got %q", "text/plain", ct)
 	}
 }
 

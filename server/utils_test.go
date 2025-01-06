@@ -20,13 +20,13 @@ func TestGetRequestID(t *testing.T) {
 		},
 		{
 			name:   "context with request ID",
-			ctx:    context.WithValue(context.Background(), requestIDKey, "test-id"),
+			ctx:    context.WithValue(context.Background(), requestID, "test-id"),
 			wantID: "test-id",
 			wantOK: true,
 		},
 		{
 			name: "context with wrong type",
-			ctx:  context.WithValue(context.Background(), requestIDKey, 123),
+			ctx:  context.WithValue(context.Background(), requestID, 123),
 		},
 	}
 
@@ -49,7 +49,7 @@ func TestRequestID(t *testing.T) {
 	ids := make(map[string]bool)
 
 	for i := 0; i < 100; i++ {
-		id := requestID()
+		id := generateRequestID()
 		if ids[id] {
 			t.Errorf("generated duplicate ID: %v", id)
 		}

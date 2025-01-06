@@ -31,6 +31,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	if rw.wroteHeader {
 		return
 	}
+
 	rw.status = code
 	rw.wroteHeader = true
 	rw.ResponseWriter.WriteHeader(code)
@@ -40,26 +41,31 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	if !rw.wroteHeader {
 		rw.WriteHeader(http.StatusOK)
 	}
+
 	n, err := rw.ResponseWriter.Write(b)
 	rw.written += int64(n)
+
 	return n, err
 }
 
 // LoggingMiddleware creates a middleware that logs incoming requests and their duration
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		reqID := requestID()
+		var (
+			start      = time.Now()
+			reqID      = generateRequestID()
+			remoteAddr = remoteAddress(r)
+		)
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, requestIDKey, reqID)
+		ctx = context.WithValue(ctx, requestID, reqID)
 		r = r.WithContext(ctx)
 
-		slog.Info("request started",
+		slog.InfoContext(ctx, "request started",
 			"id", reqID,
 			"method", r.Method,
 			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
+			"remote_addr", remoteAddr,
 			"user_agent", r.UserAgent(),
 		)
 
@@ -72,21 +78,21 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			slog.String("id", reqID),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
-			slog.String("remote_addr", remoteAddress(r)),
+			slog.String("remote_addr", remoteAddr),
 			slog.Int("status", wrappedWriter.status),
 			slog.Duration("duration", duration),
 		}
 
-		if len(r.URL.RawQuery) > 0 {
+		if r.URL.RawQuery != "" {
 			attrs = append(attrs, slog.String("query", r.URL.RawQuery))
 		}
 
-		// select log level
-		if wrappedWriter.status >= http.StatusInternalServerError {
+		switch {
+		case wrappedWriter.status >= http.StatusInternalServerError:
 			slog.ErrorContext(ctx, "request completed with server error", attrs...)
-		} else if wrappedWriter.status >= http.StatusBadRequest {
+		case wrappedWriter.status >= http.StatusBadRequest:
 			slog.WarnContext(ctx, "request completed with client error", attrs...)
-		} else {
+		default:
 			slog.InfoContext(ctx, "request completed", attrs...)
 		}
 	})
@@ -97,12 +103,9 @@ func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				reqID, _ := GetRequestID(r.Context())
-				slog.Error("panic recovered",
-					"error", err,
-					"id", reqID,
-					"stack", string(debug.Stack()),
-				)
+				ctx := r.Context()
+				reqID, _ := GetRequestID(ctx)
+				slog.ErrorContext(ctx, "panic recovered", "error", err, "id", reqID, "stack", string(debug.Stack()))
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			}
 		}()
@@ -130,8 +133,9 @@ func HealthCheckMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "text/plain")
 
 			if _, err := w.Write([]byte("OK")); err != nil {
-				reqID, _ := GetRequestID(r.Context())
-				slog.Error("response write error", "id", reqID, "error", err)
+				ctx := r.Context()
+				reqID, _ := GetRequestID(ctx)
+				slog.ErrorContext(ctx, "response write error", "id", reqID, "error", err)
 			}
 			return
 		}
@@ -156,13 +160,15 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 
 		w.Header().Set("Content-Type", "text/plain")
 		if _, err := w.Write(groupData); err != nil {
-			reqID, exists := GetRequestID(r.Context())
+			ctx := r.Context()
+			reqID, exists := GetRequestID(ctx)
+
 			if !exists {
 				reqID = "unknown"
-				slog.Warn("request id not found", "method", r.Method, "path", r.URL.Path)
+				slog.WarnContext(ctx, "request id not found", "method", r.Method, "path", r.URL.Path)
 			}
 
-			slog.Error("response write error", "id", reqID, "error", err)
+			slog.ErrorContext(ctx, "response write error", "id", reqID, "error", err)
 		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -46,6 +47,7 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 	const (
 		maxConnectionsPerHost = 100
 		maxIdleConnections    = 1000
+		minHandshakeTimeout   = 500 * time.Millisecond
 	)
 	var (
 		timeout   time.Duration
@@ -58,7 +60,9 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 		timeout = max(timeout, group.MaxSubscriptionTimeout())
 	}
 
-	timeout *= 2
+	handshakeTimeout := max(timeout/2, minHandshakeTimeout)
+	slog.Info("timeouts", "timeout", timeout, "handshake", handshakeTimeout)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Crawler{
@@ -70,10 +74,16 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 				Proxy:             http.ProxyFromEnvironment,
 				MaxIdleConns:      maxIdleConnections,
 				MaxConnsPerHost:   maxConnectionsPerHost,
-				IdleConnTimeout:   timeout * 3,
+				IdleConnTimeout:   timeout * 10,
 				ForceAttemptHTTP2: true,
+				DialContext: (&net.Dialer{
+					Timeout:   handshakeTimeout,
+					KeepAlive: timeout * 5,
+				}).DialContext,
+				TLSHandshakeTimeout:   handshakeTimeout,
+				ResponseHeaderTimeout: timeout,
 			},
-			Timeout: timeout,
+			Timeout: timeout * 2,
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,
@@ -231,7 +241,14 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		return
 	}
 
-	slog.Info("fetched", "group", groupName, "subscription", sub.Name, "size", len(urls), "bytes", n, "duration", time.Since(start))
+	slog.Info("fetched",
+		"group", groupName,
+		"subscription", sub.Name,
+		"encoded", sub.Encoded,
+		"size", len(urls),
+		"bytes", n,
+		"duration", time.Since(start),
+	)
 	fetchRes.urls = urls
 }
 

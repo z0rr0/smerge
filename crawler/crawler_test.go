@@ -242,6 +242,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 		name         string
 		handler      http.HandlerFunc
 		subscription cfg.Subscription
+		expected     []string
 		wantErr      bool
 		encoded      bool
 	}{
@@ -256,8 +257,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				Name:    "test",
 				Timeout: cfg.Duration(time.Second),
 			},
-			wantErr: false,
-			encoded: false,
+			expected: []string{"line1", "line2"},
 		},
 		{
 			name: "encoded response",
@@ -272,8 +272,8 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				Timeout: cfg.Duration(time.Second),
 				Encoded: true,
 			},
-			wantErr: false,
-			encoded: true,
+			expected: []string{"line1", "line2"},
+			encoded:  true,
 		},
 		{
 			name: "timeout error",
@@ -288,7 +288,6 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				Timeout: cfg.Duration(10 * time.Millisecond),
 			},
 			wantErr: true,
-			encoded: false,
 		},
 		{
 			name: "server error",
@@ -300,7 +299,19 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				Timeout: cfg.Duration(time.Second),
 			},
 			wantErr: true,
-			encoded: false,
+		},
+		{
+			name: "skip empty lines",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if _, err := w.Write([]byte("\n\nline1\n\nline2\r\nline3\n\t")); err != nil {
+					t.Errorf("failed to write response: %v", err)
+				}
+			},
+			subscription: cfg.Subscription{
+				Name:    "test",
+				Timeout: cfg.Duration(time.Second),
+			},
+			expected: []string{"line1", "line2", "line3"},
 		},
 	}
 
@@ -324,6 +335,9 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				}
 				if !tc.wantErr && len(res.urls) == 0 {
 					t.Error("fetchSubscription() returned empty urls")
+				}
+				if !slices.Equal(res.urls, tc.expected) {
+					t.Errorf("fetchSubscription() = %q, want %q", res.urls, tc.expected)
 				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("timeout waiting for fetchSubscription")
@@ -416,7 +430,6 @@ func TestReadSubscription(t *testing.T) {
 			encoded:   true,
 			wantUrls:  []string{"https://example1.com", "https://example2.com", "https://example3.com"},
 			wantBytes: 62,
-			wantErr:   false,
 		},
 		{
 			name:        "invalid base64 input",
@@ -426,15 +439,13 @@ func TestReadSubscription(t *testing.T) {
 			errContains: "read encoded response error",
 		},
 		{
-			name:     "empty input",
-			input:    "",
-			wantUrls: []string{""},
+			name:  "empty input",
+			input: "",
 		},
 		{
-			name:     "empty encoded input",
-			input:    base64.StdEncoding.EncodeToString([]byte("")),
-			encoded:  true,
-			wantUrls: []string{""},
+			name:    "empty encoded input",
+			input:   base64.StdEncoding.EncodeToString([]byte("")),
+			encoded: true,
 		},
 	}
 
@@ -458,7 +469,7 @@ func TestReadSubscription(t *testing.T) {
 			}
 
 			if !slices.Equal(gotUrls, tc.wantUrls) {
-				t.Errorf("gotUrls = %v, want %v", gotUrls, tc.wantUrls)
+				t.Errorf("gotUrls = %q, want %q", gotUrls, tc.wantUrls)
 			}
 
 			if gotBytes != tc.wantBytes {

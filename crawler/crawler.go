@@ -16,9 +16,6 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
-// lineSep is a line separator.
-const lineSep = "\n"
-
 // Getter is an interface for getting data by group name.
 // If force is true, the data will be fetched from the source.
 // If decode is true, the data will be decoded from base64 if request group has Encoded flag.
@@ -257,13 +254,14 @@ func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 		}
 	}
 
-	// trim result, use one type of line separator
-	urls := strings.Split(strings.ReplaceAll(strings.Trim(buf.String(), lineSep), "\r\n", lineSep), lineSep)
-	return urls, n, nil
+	// split result ignoring characters https://pkg.go.dev/unicode#IsSpace
+	return strings.Fields(buf.String()), n, nil
 }
 
 // prepareGroupResult prepares the group result for storing.
 func prepareGroupResult(urls []string, encoded bool) []byte {
+	const lineSep = "\n"
+
 	sort.Strings(urls)
 	groupResult := []byte(strings.Join(urls, lineSep))
 

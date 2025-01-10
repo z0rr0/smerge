@@ -89,10 +89,36 @@ func (prefixes Prefixes) LogValue() slog.Value {
 	return slog.StringValue(b.String())
 }
 
+// URL is a subscription URL string type.
+type URL string
+
+// String returns a string representation of the URL type.
+func (su URL) String() string {
+	return string(su)
+}
+
+// LogValue returns a slog.Value to implement slog.LogValuer interface.
+func (su URL) LogValue() slog.Value {
+	const maxLen = 32
+	var (
+		value = string(su)
+		n     = len(value)
+	)
+
+	if n > maxLen {
+		value = value[:maxLen] + "..."
+	} else {
+		n = max(n-3, 0)
+		value = value[:n] + "..."
+	}
+
+	return slog.StringValue(value)
+}
+
 // Subscription represents a subscription data.
 type Subscription struct {
 	Name        string   `json:"name"`
-	URL         string   `json:"url"`
+	URL         URL      `json:"url"`
 	Encoded     bool     `json:"encoded"`
 	Timeout     Duration `json:"timeout"`
 	HasPrefixes Prefixes `json:"has_prefixes"`
@@ -112,12 +138,34 @@ func (s *Subscription) Validate() error {
 		return errors.Join(ErrDenyInterval, fmt.Errorf("timeout is too short, should be at least %v", minTimeout))
 	}
 
-	_, err := url.Parse(s.URL)
+	_, err := url.Parse(s.URL.String())
 	if err != nil {
 		return errors.Join(ErrParse, fmt.Errorf("URL is invalid: %w", err))
 	}
 
 	return nil
+}
+
+// Filter returns a list of values filtered by prefixes.
+func (s *Subscription) Filter(values []string) []string {
+	var valuesLen = len(values)
+
+	if valuesLen == 0 || len(s.HasPrefixes) == 0 {
+		return values
+	}
+
+	// filter values if prefixes are set
+	result := make([]string, 0, valuesLen)
+	for _, value := range values {
+		for _, prefix := range s.HasPrefixes {
+			if strings.HasPrefix(value, prefix) {
+				result = append(result, value)
+				break // enough only one prefix matching
+			}
+		}
+	}
+
+	return result
 }
 
 // Group is a collection of subscriptions.

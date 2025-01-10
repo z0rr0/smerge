@@ -26,12 +26,13 @@ Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
       "name": "group1",
       "endpoint": "/group1",
       "encoded": true,
-      "period": "90m",
+      "period": "1h15m",
       "subscriptions": [
         {
           "name": "subscription1",
           "url": "http://localhost:43211/subscription1",
           "encoded": false,
+          "has_prefixes": ["ss://", "vless://"],
           "timeout": "10s"
         },
         {
@@ -44,6 +45,7 @@ Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
     }
   ]
 }
+
 ```
 
 `Encoded` is a flag what means that subscription data is encoded in base64.
@@ -66,8 +68,8 @@ Test coverage:
 make test
 ...
 ok      github.com/z0rr0/smerge         (cached)        coverage: 65.4% of statements
-ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 95.9% of statements
-ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 94.0% of statements
+ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 96.6% of statements
+ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 93.3% of statements
 ok      github.com/z0rr0/smerge/server  (cached)        coverage: 90.9% of statements
 ```
 

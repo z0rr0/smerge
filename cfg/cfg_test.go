@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -632,7 +633,97 @@ func TestPrefixes_LogValue(t *testing.T) {
 			s := tc.prefixes.LogValue()
 
 			if v := s.String(); v != tc.expected {
-				t.Errorf("unexpected value, got=%s, but expected=%s", v, tc.expected)
+				t.Errorf("unexpected value, got=%q, but expected=%q", v, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSubscription_Filter(t *testing.T) {
+	testCases := []struct {
+		name     string
+		sub      Subscription
+		values   []string
+		expected []string
+	}{
+		{
+			name: "empty",
+			sub:  Subscription{},
+		},
+		{
+			name:     "no prefixes",
+			sub:      Subscription{},
+			values:   []string{"ss://url1", "ss://url2", "vless://url3"},
+			expected: []string{"ss://url1", "ss://url2", "vless://url3"},
+		},
+		{
+			name: "no values",
+			sub:  Subscription{HasPrefixes: Prefixes{"ss://", "vless://"}},
+		},
+		{
+			name:   "no match",
+			sub:    Subscription{HasPrefixes: Prefixes{"ss://", "vless://"}},
+			values: []string{"trojan://url1", "vmess://url2", "https://url3"},
+		},
+		{
+			name:     "single match",
+			sub:      Subscription{HasPrefixes: Prefixes{"ss://", "vless://"}},
+			values:   []string{"ss://url1", "vmess://url2", "https://url3"},
+			expected: []string{"ss://url1"},
+		},
+		{
+			name:     "multiple matches",
+			sub:      Subscription{HasPrefixes: Prefixes{"ss://", "vless://"}},
+			values:   []string{"ss://url1", "vless://url2", "https://url3"},
+			expected: []string{"ss://url1", "vless://url2"},
+		},
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			if result := tc.sub.Filter(tc.values); !slices.Equal(result, tc.expected) {
+				t.Errorf("unexpected value, got=%v, but expected=%v", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestURL_LogValue(t *testing.T) {
+	testCases := []struct {
+		name     string
+		url      URL
+		expected string
+	}{
+		{
+			name:     "empty",
+			expected: "...",
+		},
+		{
+			name:     "short",
+			url:      "https://localhost:43211/sub1",
+			expected: "https://localhost:43211/s...",
+		},
+		{
+			name:     "long",
+			url:      "https://localhost:43211/subscription1",
+			expected: "https://localhost:43211/subscrip...",
+		},
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			s := tc.url.LogValue()
+
+			if v := s.String(); v != tc.expected {
+				t.Errorf("unexpected value, got=%q, but expected=%q", v, tc.expected)
+			}
+
+			if v := tc.url.String(); v != string(tc.url) {
+				t.Errorf("unexpected value, got=%q, but expected=%q", v, tc.url)
 			}
 		})
 	}

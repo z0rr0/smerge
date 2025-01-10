@@ -80,7 +80,7 @@ func TestCrawler_Get(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     server.URL,
+						URL:     cfg.URL(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -104,7 +104,7 @@ func TestCrawler_Get(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     server.URL,
+						URL:     cfg.URL(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -168,7 +168,7 @@ func TestCrawler_Run(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     server.URL,
+						URL:     cfg.URL(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -184,12 +184,12 @@ func TestCrawler_Run(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     server.URL,
+						URL:     cfg.URL(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 					{
 						Name:    "sub2",
-						URL:     server.URL,
+						URL:     cfg.URL(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -322,7 +322,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 			server := httptest.NewServer(tc.handler)
 			defer server.Close()
 
-			tc.subscription.URL = server.URL
+			tc.subscription.URL = cfg.URL(server.URL)
 			c := New([]cfg.Group{}, userAgent)
 			result := make(chan fetchResult)
 
@@ -361,7 +361,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 		Subscriptions: []cfg.Subscription{
 			{
 				Name:    "sub1",
-				URL:     server.URL,
+				URL:     cfg.URL(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 		},
@@ -392,7 +392,6 @@ func TestReadSubscription(t *testing.T) {
 		name        string
 		input       string
 		encoded     bool
-		prefixes    []string
 		wantUrls    []string
 		wantBytes   int64
 		wantErr     bool
@@ -432,19 +431,7 @@ func TestReadSubscription(t *testing.T) {
 			wantUrls:  []string{"https://example1.com", "https://example2.com", "https://example3.com"},
 			wantBytes: 62,
 		},
-		{
-			name:      "multiple urls with prefixes",
-			input:     "ss://example1.com\n\nhttps://example2.com\nvless://example3.com",
-			prefixes:  []string{"ss://", "vless://"},
-			wantUrls:  []string{"ss://example1.com", "vless://example3.com"},
-			wantBytes: 60,
-		},
-		{
-			name:      "strict by prefixes",
-			input:     "ss://example1.com\n\nhttps://example2.com\nvless://example3.com",
-			prefixes:  []string{"trojan://", "vmess://"},
-			wantBytes: 60,
-		},
+
 		{
 			name:        "invalid base64 input",
 			input:       "invalid base64!@#$",
@@ -468,7 +455,7 @@ func TestReadSubscription(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			reader := strings.NewReader(tc.input)
-			gotUrls, gotBytes, err := readSubscription(reader, tc.name, tc.encoded, tc.prefixes)
+			gotUrls, gotBytes, err := readSubscription(reader, tc.encoded)
 
 			if err != nil {
 				if !tc.wantErr {
@@ -507,12 +494,12 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		Subscriptions: []cfg.Subscription{
 			{
 				Name:    "sub1",
-				URL:     server.URL,
+				URL:     cfg.URL(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 			{
 				Name:    "sub2",
-				URL:     server.URL,
+				URL:     cfg.URL(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 		},

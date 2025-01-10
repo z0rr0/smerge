@@ -208,7 +208,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		result <- fetchRes
 	}()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL.String(), nil)
 	if err != nil {
 		fetchRes.error = fmt.Errorf("new request error: %w", err)
 		return
@@ -241,25 +241,27 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		return
 	}
 
-	urls, n, err := readSubscription(resp.Body, sub.Name, sub.Encoded, sub.HasPrefixes)
+	urls, n, err := readSubscription(resp.Body, sub.Encoded)
 	if err != nil {
 		fetchRes.error = fmt.Errorf("read subscription error: %w", err)
 		return
 	}
 
+	fetchRes.urls = sub.Filter(urls)
 	slog.Info("fetched",
 		"group", groupName,
 		"subscription", sub.Name,
 		"encoded", sub.Encoded,
 		"size", len(urls),
+		"filtered", len(fetchRes.urls),
+		"prefixes", len(sub.HasPrefixes),
 		"bytes", n,
 		"duration", time.Since(start),
 	)
-	fetchRes.urls = urls
 }
 
 // readSubscription reads the subscription data from the reader (HTTP response body).
-func readSubscription(r io.Reader, name string, encoded bool, prefixes []string) ([]string, int64, error) {
+func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 	var (
 		buf = new(bytes.Buffer)
 		n   int64
@@ -278,27 +280,7 @@ func readSubscription(r io.Reader, name string, encoded bool, prefixes []string)
 	}
 
 	// split result ignoring characters https://pkg.go.dev/unicode#IsSpace
-	values := strings.Fields(buf.String())
-	valuesLen := len(values)
-	prefixesLen := len(prefixes)
-
-	if prefixesLen == 0 || valuesLen == 0 {
-		return values, n, nil
-	}
-
-	// filter values if prefixes are set
-	result := make([]string, 0, valuesLen)
-	for _, value := range values {
-		for _, prefix := range prefixes {
-			if strings.HasPrefix(value, prefix) {
-				result = append(result, value)
-				break // enough only one prefix matching
-			}
-		}
-	}
-
-	slog.Debug("readSubscription", "name", name, "prefixes", prefixesLen, "values", valuesLen, "filtered", len(result))
-	return result, n, nil
+	return strings.Fields(buf.String()), n, nil
 }
 
 // prepareGroupResult prepares the group result for storing.

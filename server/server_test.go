@@ -32,7 +32,7 @@ func TestRun(t *testing.T) {
 				Endpoint: "/test1",
 				Period:   cfg.Duration(time.Hour),
 				Subscriptions: []cfg.Subscription{
-					{Name: "sub1", URL: subsServer.URL, Timeout: cfg.Duration(time.Second)},
+					{Name: "sub1", URL: cfg.URL(subsServer.URL), Timeout: cfg.Duration(time.Second)},
 				},
 			},
 			{Name: "test2", Endpoint: "/test2", Period: cfg.Duration(time.Second)},

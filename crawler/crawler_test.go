@@ -392,6 +392,7 @@ func TestReadSubscription(t *testing.T) {
 		name        string
 		input       string
 		encoded     bool
+		prefixes    []string
 		wantUrls    []string
 		wantBytes   int64
 		wantErr     bool
@@ -432,6 +433,19 @@ func TestReadSubscription(t *testing.T) {
 			wantBytes: 62,
 		},
 		{
+			name:      "multiple urls with prefixes",
+			input:     "ss://example1.com\n\nhttps://example2.com\nvless://example3.com",
+			prefixes:  []string{"ss://", "vless://"},
+			wantUrls:  []string{"ss://example1.com", "vless://example3.com"},
+			wantBytes: 60,
+		},
+		{
+			name:      "strict by prefixes",
+			input:     "ss://example1.com\n\nhttps://example2.com\nvless://example3.com",
+			prefixes:  []string{"trojan://", "vmess://"},
+			wantBytes: 60,
+		},
+		{
 			name:        "invalid base64 input",
 			input:       "invalid base64!@#$",
 			encoded:     true,
@@ -454,7 +468,7 @@ func TestReadSubscription(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			reader := strings.NewReader(tc.input)
-			gotUrls, gotBytes, err := readSubscription(reader, tc.encoded)
+			gotUrls, gotBytes, err := readSubscription(reader, tc.name, tc.encoded, tc.prefixes)
 
 			if err != nil {
 				if !tc.wantErr {

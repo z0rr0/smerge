@@ -15,6 +15,7 @@
           "name": "subscription1",
           "url": "http://localhost:43211/subscription1",
           "encoded": false,
+          "has_prefixes": ["ss://", "vless://"],
           "timeout": "10s"
         },
         {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -63,12 +64,38 @@ func (d *Duration) String() string {
 	return d.Timed().String()
 }
 
+// Prefixes is a list of prefixes for filtering subscription's values.
+type Prefixes []string
+
+// LogValue returns a slog.Value to implement slog.LogValuer interface.
+func (prefixes Prefixes) LogValue() slog.Value {
+	var count = len(prefixes)
+
+	if count == 0 {
+		return slog.StringValue("[]")
+	}
+
+	var b strings.Builder
+	b.WriteString("[")
+
+	for i := 0; i < count-1; i++ {
+		b.WriteString(fmt.Sprintf("'%s'", prefixes[i]))
+		b.WriteString(", ")
+	}
+
+	b.WriteString(fmt.Sprintf("'%s'", prefixes[count-1]))
+	b.WriteString("]")
+
+	return slog.StringValue(b.String())
+}
+
 // Subscription represents a subscription data.
 type Subscription struct {
-	Name    string   `json:"name"`
-	URL     string   `json:"url"`
-	Encoded bool     `json:"encoded"`
-	Timeout Duration `json:"timeout"`
+	Name        string   `json:"name"`
+	URL         string   `json:"url"`
+	Encoded     bool     `json:"encoded"`
+	Timeout     Duration `json:"timeout"`
+	HasPrefixes Prefixes `json:"has_prefixes"`
 }
 
 // Validate checks the subscription for correctness.

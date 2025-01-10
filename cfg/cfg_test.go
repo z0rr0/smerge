@@ -601,3 +601,39 @@ func TestDurationMarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestPrefixes_LogValue(t *testing.T) {
+	testCases := []struct {
+		name     string
+		prefixes Prefixes
+		expected string
+	}{
+		{
+			name:     "empty",
+			prefixes: nil,
+			expected: "[]",
+		},
+		{
+			name:     "single",
+			prefixes: Prefixes{"prefix1"},
+			expected: "['prefix1']",
+		},
+		{
+			name:     "multiple",
+			prefixes: Prefixes{"prefix1", "prefix2", "prefix3"},
+			expected: "['prefix1', 'prefix2', 'prefix3']",
+		},
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			s := tc.prefixes.LogValue()
+
+			if v := s.String(); v != tc.expected {
+				t.Errorf("unexpected value, got=%s, but expected=%s", v, tc.expected)
+			}
+		})
+	}
+}

@@ -215,7 +215,13 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	}
 
 	req.Header.Set("User-Agent", c.userAgent)
-	slog.Debug("fetchSubscription", "group", groupName, "subscription", sub.Name, "url", sub.URL)
+	slog.Debug(
+		"fetchSubscription",
+		"group", groupName,
+		"subscription", sub.Name,
+		"has_prefixes", sub.HasPrefixes,
+		"url", sub.URL,
+	)
 
 	start := time.Now()
 	resp, err := c.client.Do(req)
@@ -235,7 +241,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		return
 	}
 
-	urls, n, err := readSubscription(resp.Body, sub.Encoded)
+	urls, n, err := readSubscription(resp.Body, sub.Name, sub.Encoded, sub.HasPrefixes)
 	if err != nil {
 		fetchRes.error = fmt.Errorf("read subscription error: %w", err)
 		return
@@ -253,7 +259,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 }
 
 // readSubscription reads the subscription data from the reader (HTTP response body).
-func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
+func readSubscription(r io.Reader, name string, encoded bool, prefixes []string) ([]string, int64, error) {
 	var (
 		buf = new(bytes.Buffer)
 		n   int64
@@ -272,7 +278,27 @@ func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 	}
 
 	// split result ignoring characters https://pkg.go.dev/unicode#IsSpace
-	return strings.Fields(buf.String()), n, nil
+	values := strings.Fields(buf.String())
+	valuesLen := len(values)
+	prefixesLen := len(prefixes)
+
+	if prefixesLen == 0 || valuesLen == 0 {
+		return values, n, nil
+	}
+
+	// filter values if prefixes are set
+	result := make([]string, 0, valuesLen)
+	for _, value := range values {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(value, prefix) {
+				result = append(result, value)
+				break // enough only one prefix matching
+			}
+		}
+	}
+
+	slog.Debug("readSubscription", "name", name, "prefixes", prefixesLen, "values", valuesLen, "filtered", len(result))
+	return result, n, nil
 }
 
 // prepareGroupResult prepares the group result for storing.

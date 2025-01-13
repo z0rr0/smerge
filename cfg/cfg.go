@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -146,6 +148,22 @@ func (s *Subscription) Validate() error {
 	return nil
 }
 
+// filterIter returns an iterator for filtering values by prefixes.
+func (s *Subscription) filterIter(values []string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for value := range slices.Values(values) {
+			for prefix := range slices.Values(s.HasPrefixes) {
+				if strings.HasPrefix(value, prefix) {
+					if !yield(value) {
+						return
+					}
+					break
+				}
+			}
+		}
+	}
+}
+
 // Filter returns a list of values filtered by prefixes.
 func (s *Subscription) Filter(values []string) []string {
 	var valuesLen = len(values)
@@ -154,15 +172,9 @@ func (s *Subscription) Filter(values []string) []string {
 		return values
 	}
 
-	// filter values if prefixes are set
 	result := make([]string, 0, valuesLen)
-	for _, value := range values {
-		for _, prefix := range s.HasPrefixes {
-			if strings.HasPrefix(value, prefix) {
-				result = append(result, value)
-				break // enough only one prefix matching
-			}
-		}
+	for value := range s.filterIter(values) {
+		result = append(result, value)
 	}
 
 	return result

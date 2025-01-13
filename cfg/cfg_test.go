@@ -639,6 +639,54 @@ func TestPrefixes_LogValue(t *testing.T) {
 	}
 }
 
+func TestPrefixes_Match(t *testing.T) {
+	testCases := []struct {
+		name     string
+		prefixes Prefixes
+		value    string
+		expected bool
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name:     "no match",
+			prefixes: Prefixes{"ss://", "vless://"},
+			value:    "trojan://url1",
+		},
+		{
+			name:  "no prefixes",
+			value: "ss://url1",
+		},
+		{
+			name:     "empty value",
+			prefixes: Prefixes{"ss://", "vless://"},
+		},
+		{
+			name:     "single match",
+			prefixes: Prefixes{"ss://", "vless://"},
+			value:    "ss://url1",
+			expected: true,
+		},
+		{
+			name:     "multiple matches",
+			prefixes: Prefixes{"v", "vl", "vle", "vless"},
+			value:    "vless://url1",
+			expected: true,
+		},
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			if result := tc.prefixes.Match(tc.value); result != tc.expected {
+				t.Errorf("unexpected value, got=%v, but expected=%v", result, tc.expected)
+			}
+		})
+	}
+}
+
 func TestSubscription_Filter(t *testing.T) {
 	testCases := []struct {
 		name     string

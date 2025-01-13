@@ -91,6 +91,17 @@ func (prefixes Prefixes) LogValue() slog.Value {
 	return slog.StringValue(b.String())
 }
 
+// Match checks if the subscription proxy URL has prefixes.
+func (prefixes Prefixes) Match(subURL string) bool {
+	for prefix := range slices.Values(prefixes) {
+		if strings.HasPrefix(subURL, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // URL is a subscription URL string type.
 type URL string
 
@@ -148,36 +159,31 @@ func (s *Subscription) Validate() error {
 	return nil
 }
 
-// filterIter returns an iterator for filtering values by prefixes.
-func (s *Subscription) filterIter(values []string) iter.Seq[string] {
+// filterIter returns an iterator for filtering subscription URLs by prefixes.
+func (s *Subscription) filterIter(subURLs []string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for value := range slices.Values(values) {
-			for prefix := range slices.Values(s.HasPrefixes) {
-				if strings.HasPrefix(value, prefix) {
-					if !yield(value) {
-						return
-					}
-					break
-				}
+		for subURL := range slices.Values(subURLs) {
+			if s.HasPrefixes.Match(subURL) && !yield(subURL) {
+				return
 			}
 		}
 	}
 }
 
-// Filter returns a list of values filtered by prefixes.
-func (s *Subscription) Filter(values []string) []string {
-	var valuesLen = len(values)
+// Filter returns a list of URLs filtered by prefixes.
+func (s *Subscription) Filter(subURLs []string) []string {
+	var valuesLen = len(subURLs)
 
 	if valuesLen == 0 || len(s.HasPrefixes) == 0 {
-		return values
+		return subURLs
 	}
 
-	result := make([]string, 0, valuesLen)
-	for value := range s.filterIter(values) {
-		result = append(result, value)
+	urls := make([]string, 0, valuesLen)
+	for subURL := range s.filterIter(subURLs) {
+		urls = append(urls, subURL)
 	}
 
-	return result
+	return urls
 }
 
 // Group is a collection of subscriptions.

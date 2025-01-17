@@ -168,8 +168,8 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 func (c *Crawler) fetchGroup(group *cfg.Group) {
 	const avgSubURLs = 10
 	var (
-		result           = make(chan fetchResult)
 		start            = time.Now()
+		result           = make(chan fetchResult, 1)
 		subscriptionsLen = len(group.Subscriptions)
 		avgURLsLen       = subscriptionsLen * avgSubURLs
 	)
@@ -194,7 +194,13 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	c.result[group.Name] = groupResult
 	c.Unlock()
 
-	slog.Info("fetched", "group", group.Name, "urls", len(urls), "bytes", len(groupResult), "duration", time.Since(start))
+	slog.Info(
+		"fetched",
+		"group", group.Name,
+		"urls", len(urls),
+		"bytes", len(groupResult),
+		"duration", time.Since(start),
+	)
 }
 
 // fetchSubscription fetches the subscription urls.
@@ -204,8 +210,8 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 		ctx, cancel = context.WithTimeout(c.ctx, sub.Timeout.Timed())
 	)
 	defer func() {
-		cancel()
 		result <- fetchRes
+		cancel()
 	}()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.URL.String(), nil)

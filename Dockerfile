@@ -1,4 +1,4 @@
-ARG GOLANG_VERSION="1.23.4"
+ARG GOLANG_VERSION="1.23.5"
 
 FROM golang:${GOLANG_VERSION}-alpine AS builder
 ARG LDFLAGS
@@ -17,7 +17,7 @@ LABEL org.opencontainers.image.authors="me@axv.email" \
         org.opencontainers.image.title="SMerge" \
         org.opencontainers.image.description="Subscriptions merge tool"
 
-COPY --from=builder /go/src/github.com/z0rr0/smerge/smerge /bin/
+COPY --from=builder /go/src/github.com/z0rr0/smerge/smerge /bin/smerge
 RUN chmod 0755 /bin/smerge
 
 VOLUME ["/data/"]

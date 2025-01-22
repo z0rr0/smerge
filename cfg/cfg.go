@@ -18,13 +18,14 @@ import (
 // Duration is a wrapper around time.Duration that supports unmarshalling from a JSON string.
 type Duration time.Duration
 
-var (
+const (
 	// minPeriod is a minimal period value of subscriptions' group refresh.
 	minPeriod = Duration(time.Second)
-
 	// minTimeout is a minimal timeout value of subscription refresh.
 	minTimeout = Duration(10 * time.Millisecond)
+)
 
+var (
 	// ErrRequiredField is an error for required field.
 	ErrRequiredField = errors.New("required field is empty")
 	// ErrDenyInterval is an error for deny interval, too short or too long.
@@ -172,18 +173,11 @@ func (s *Subscription) filterIter(subURLs []string) iter.Seq[string] {
 
 // Filter returns a list of URLs filtered by prefixes.
 func (s *Subscription) Filter(subURLs []string) []string {
-	var valuesLen = len(subURLs)
-
-	if valuesLen == 0 || len(s.HasPrefixes) == 0 {
+	if len(subURLs) == 0 || len(s.HasPrefixes) == 0 {
 		return subURLs
 	}
 
-	urls := make([]string, 0, valuesLen)
-	for subURL := range s.filterIter(subURLs) {
-		urls = append(urls, subURL)
-	}
-
-	return urls
+	return slices.Collect(s.filterIter(subURLs))
 }
 
 // Group is a collection of subscriptions.

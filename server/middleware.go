@@ -126,14 +126,15 @@ func ValidationMiddleware(next http.Handler) http.Handler {
 }
 
 // HealthCheckMiddleware is a middleware that handles health check requests.
-func HealthCheckMiddleware(next http.Handler) http.Handler {
+func HealthCheckMiddleware(next http.Handler, versionInfo string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const healthCheckPath = "/ok"
+		var okResponse = []byte("OK " + versionInfo)
 
 		if strings.TrimRight(r.URL.Path, "/") == healthCheckPath {
 			w.Header().Set("Content-Type", "text/plain")
 
-			if _, err := w.Write([]byte("OK")); err != nil {
+			if _, err := w.Write(okResponse); err != nil {
 				ctx := r.Context()
 				reqID, _ := GetRequestID(ctx)
 				slog.ErrorContext(ctx, "response write error", "id", reqID, "error", err)

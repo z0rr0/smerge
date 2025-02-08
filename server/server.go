@@ -14,7 +14,7 @@ import (
 	"github.com/z0rr0/smerge/crawler"
 )
 
-func Run(config *cfg.Config) {
+func Run(config *cfg.Config, versionInfo string) {
 	var (
 		serverTimeout   = time.Duration(config.Timeout)
 		serverAddr      = config.Addr()
@@ -30,6 +30,7 @@ func Run(config *cfg.Config) {
 			ValidationMiddleware(
 				HealthCheckMiddleware(
 					handleGroup(groupsEndpoints, cr),
+					versionInfo,
 				),
 			),
 		),

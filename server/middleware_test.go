@@ -272,7 +272,7 @@ func TestNegativeHealthCheckMiddleware(t *testing.T) {
 		}
 	})
 
-	handler := HealthCheckMiddleware(nextHandler)
+	handler := HealthCheckMiddleware(nextHandler, "test version")
 	req := httptest.NewRequest("GET", "/ok", nil)
 	w := new(negativeResponseWriter)
 	handler.ServeHTTP(w, req)
@@ -294,14 +294,14 @@ func TestHealthCheckMiddleware(t *testing.T) {
 			name:          "ok",
 			path:          "/ok",
 			expectedCode:  http.StatusOK,
-			expectedBody:  "OK",
+			expectedBody:  "OK test version",
 			expectedCalls: 0,
 		},
 		{
 			name:          "trailing slash",
 			path:          "/ok/",
 			expectedCode:  http.StatusOK,
-			expectedBody:  "OK",
+			expectedBody:  "OK test version",
 			expectedCalls: 0,
 		},
 		{
@@ -326,7 +326,7 @@ func TestHealthCheckMiddleware(t *testing.T) {
 				}
 			})
 
-			handler := HealthCheckMiddleware(nextHandler)
+			handler := HealthCheckMiddleware(nextHandler, "test version")
 			req := httptest.NewRequest("GET", tc.path, nil)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)

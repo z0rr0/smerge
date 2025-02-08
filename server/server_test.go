@@ -41,7 +41,7 @@ func TestRun(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	go func() {
-		Run(config)
+		Run(config, "test version")
 		close(serverDone)
 	}()
 
@@ -69,9 +69,15 @@ func TestRun(t *testing.T) {
 			expectBody:     true,
 		},
 		{
-			name:           "health check",
+			name:           "not found",
 			path:           "/",
 			expectedStatus: http.StatusNotFound,
+			expectBody:     true,
+		},
+		{
+			name:           "health check",
+			path:           "/ok",
+			expectedStatus: http.StatusOK,
 			expectBody:     true,
 		},
 	}
@@ -143,7 +149,7 @@ func TestRunWithBadAddress(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		Run(config)
+		Run(config, "test version")
 		close(done)
 	}()
 

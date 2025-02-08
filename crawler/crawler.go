@@ -204,40 +204,33 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	)
 }
 
-func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscription) (io.ReadCloser, error) {
+func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sub.Path.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("new request error: %w", err)
+		return nil, 0, fmt.Errorf("new request error: %w", err)
 	}
 
 	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.client.Do(req)
 
 	if err != nil {
-		return nil, fmt.Errorf("client do error: %w", err)
+		return nil, 0, fmt.Errorf("client do error: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		// close body because a caller skips this step due to an error
-		if err = resp.Body.Close(); err != nil {
-			slog.Error("response body close error", "subscription", sub.Name, "error", err)
-		}
-		return nil, fmt.Errorf("response status error: %d", resp.StatusCode)
-	}
-
-	return resp.Body, nil
+	return resp.Body, resp.StatusCode, nil
 }
 
 // fetchLocalSubscription fetches the subscription if sub.Path is a local file.
-func (c *Crawler) fetchLocalSubscription(_ context.Context, sub *cfg.Subscription) (io.ReadCloser, error) {
+func (c *Crawler) fetchLocalSubscription(_ context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {
 	var fileName = sub.Path.String()
 
 	f, err := os.Open(fileName) // #nosec G304, file name is already validated during configuration parsing
 	if err != nil {
-		return nil, fmt.Errorf("open file=%q error: %w", fileName, err)
+		return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
 	}
 
-	return f, nil
+	// return a fake status code, only to have a consistent return signature with fetchURLSubscription
+	return f, http.StatusOK, nil
 }
 
 // fetchSubscription fetches the subscription urls.
@@ -245,6 +238,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	var (
 		fetchRes    = fetchResult{subscription: sub.Name}
 		ctx, cancel = context.WithTimeout(c.ctx, sub.Timeout.Timed())
+		statusCode  int
 		reader      io.ReadCloser
 		err         error
 	)
@@ -264,9 +258,9 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 	start := time.Now()
 
 	if sub.Local {
-		reader, err = c.fetchLocalSubscription(ctx, sub)
+		reader, statusCode, err = c.fetchLocalSubscription(ctx, sub)
 	} else {
-		reader, err = c.fetchURLSubscription(ctx, sub)
+		reader, statusCode, err = c.fetchURLSubscription(ctx, sub)
 	}
 
 	if err != nil {
@@ -279,6 +273,11 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 			slog.Error("response body close error", "group", groupName, "subscription", sub.Name, "error", e)
 		}
 	}()
+
+	if statusCode != http.StatusOK {
+		fetchRes.error = fmt.Errorf("response status error: %d", statusCode)
+		return
+	}
 
 	urls, n, err := readSubscription(reader, sub.Encoded)
 	if err != nil {

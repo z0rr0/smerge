@@ -218,6 +218,10 @@ func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscriptio
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		// close body because a caller skips this step due to an error
+		if err = resp.Body.Close(); err != nil {
+			slog.Error("response body close error", "subscription", sub.Name, "error", err)
+		}
 		return nil, fmt.Errorf("response status error: %d", resp.StatusCode)
 	}
 

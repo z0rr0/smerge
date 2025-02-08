@@ -221,16 +221,30 @@ func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscriptio
 }
 
 // fetchLocalSubscription fetches the subscription if sub.Path is a local file.
-func (c *Crawler) fetchLocalSubscription(_ context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {
-	var fileName = sub.Path.String()
+func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {
+	var (
+		fd       *os.File
+		err      error
+		done     = make(chan struct{})
+		fileName = sub.Path.String()
+	)
 
-	f, err := os.Open(fileName) // #nosec G304, file name is already validated during configuration parsing
-	if err != nil {
-		return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
+	go func() {
+		fd, err = os.Open(fileName) // #nosec G304, file name is already validated during configuration parsing
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if err != nil {
+			return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
+		}
+		// file was opened successfully
+		// return a fake http.StatusOK status, only to have a consistent signature with fetchURLSubscription
+		return fd, http.StatusOK, nil
+	case <-ctx.Done():
+		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, c.ctx.Err())
 	}
-
-	// return a fake status code, only to have a consistent return signature with fetchURLSubscription
-	return f, http.StatusOK, nil
 }
 
 // fetchSubscription fetches the subscription urls.

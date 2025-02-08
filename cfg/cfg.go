@@ -92,7 +92,7 @@ func (prefixes Prefixes) LogValue() slog.Value {
 	return slog.StringValue(b.String())
 }
 
-// Match checks if the subscription proxy URL has prefixes.
+// Match checks if the subscription proxy SubPath has prefixes.
 func (prefixes Prefixes) Match(subURL string) bool {
 	for prefix := range slices.Values(prefixes) {
 		if strings.HasPrefix(subURL, prefix) {
@@ -103,16 +103,16 @@ func (prefixes Prefixes) Match(subURL string) bool {
 	return false
 }
 
-// URL is a subscription URL string type.
-type URL string
+// SubPath is a subscription Path or file path string type.
+type SubPath string
 
-// String returns a string representation of the URL type.
-func (su URL) String() string {
+// String returns a string representation of the SubPath type.
+func (su SubPath) String() string {
 	return string(su)
 }
 
 // LogValue returns a slog.Value to implement slog.LogValuer interface.
-func (su URL) LogValue() slog.Value {
+func (su SubPath) LogValue() slog.Value {
 	const maxLen = 32
 	var (
 		value = string(su)
@@ -132,29 +132,42 @@ func (su URL) LogValue() slog.Value {
 // Subscription represents a subscription data.
 type Subscription struct {
 	Name        string   `json:"name"`
-	URL         URL      `json:"url"`
+	Path        SubPath  `json:"url"`
 	Encoded     bool     `json:"encoded"`
 	Timeout     Duration `json:"timeout"`
 	HasPrefixes Prefixes `json:"has_prefixes"`
+	Local       bool     `json:"local"`
 }
 
 // Validate checks the subscription for correctness.
-func (s *Subscription) Validate() error {
+func (s *Subscription) Validate(dockerVolume string) error {
 	if s.Name == "" {
 		return errors.Join(ErrRequiredField, fmt.Errorf("subscription name is empty"))
 	}
 
-	if s.URL == "" {
-		return errors.Join(ErrRequiredField, fmt.Errorf("subscription URL is empty"))
+	if s.Path == "" {
+		return errors.Join(ErrRequiredField, fmt.Errorf("subscription path is empty"))
 	}
 
 	if s.Timeout < minTimeout {
 		return errors.Join(ErrDenyInterval, fmt.Errorf("timeout is too short, should be at least %v", minTimeout))
 	}
 
-	_, err := url.Parse(s.URL.String())
-	if err != nil {
-		return errors.Join(ErrParse, fmt.Errorf("URL is invalid: %w", err))
+	if s.Local && dockerVolume == "" {
+		return errors.Join(ErrRequiredField, fmt.Errorf("docker volume is empty for local subscription %q", s.Name))
+	}
+
+	if s.Local {
+		fileName, err := validateFilePath(dockerVolume, string(s.Path))
+		if err != nil {
+			return errors.Join(ErrParse, fmt.Errorf("file path is invalid: %w", err))
+		}
+		s.Path = SubPath(fileName)
+	} else {
+		_, err := url.Parse(s.Path.String())
+		if err != nil {
+			return errors.Join(ErrParse, fmt.Errorf("URL is invalid: %w", err))
+		}
 	}
 
 	return nil
@@ -190,7 +203,7 @@ type Group struct {
 }
 
 // Validate checks the group for correctness.
-func (g *Group) Validate() error {
+func (g *Group) Validate(dockerVolume string) error {
 	if g.Name == "" {
 		return errors.Join(ErrRequiredField, fmt.Errorf("group name is empty"))
 	}
@@ -207,7 +220,7 @@ func (g *Group) Validate() error {
 	subscriptions := make(map[string]struct{}, n)
 
 	for i, sub := range g.Subscriptions {
-		if err := sub.Validate(); err != nil {
+		if err := sub.Validate(dockerVolume); err != nil {
 			return err
 		}
 
@@ -233,12 +246,13 @@ func (g *Group) MaxSubscriptionTimeout() time.Duration {
 
 // Config is a main configuration structure.
 type Config struct {
-	Host      string   `json:"host"`
-	Port      uint16   `json:"port"`
-	UserAgent string   `json:"user_agent"`
-	Timeout   Duration `json:"timeout"`
-	Debug     bool     `json:"debug"`
-	Groups    []Group  `json:"groups"`
+	Host         string   `json:"host"`
+	Port         uint16   `json:"port"`
+	UserAgent    string   `json:"user_agent"`
+	Timeout      Duration `json:"timeout"`
+	DockerVolume string   `json:"docker_volume"`
+	Debug        bool     `json:"debug"`
+	Groups       []Group  `json:"groups"`
 }
 
 // Validate checks the configuration for correctness.
@@ -260,7 +274,7 @@ func (c *Config) Validate() error {
 	names := make(map[string]struct{}, n)
 
 	for i, group := range c.Groups {
-		if err := group.Validate(); err != nil {
+		if err := group.Validate(c.DockerVolume); err != nil {
 			return err
 		}
 
@@ -298,14 +312,14 @@ func (c *Config) GroupsEndpoints() map[string]*Group {
 
 // readConfig reads a configuration file from the filesystem.
 func readConfig(filename string) ([]byte, error) {
-	const dockerDir = "/data"
+	const dockerConfigDir = "/data"
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("get current dir: %w", err)
 	}
 
 	cleanPath := filepath.Clean(strings.Trim(filename, " "))
-	isDocker := strings.HasPrefix(cleanPath, dockerDir)
+	isDocker := strings.HasPrefix(cleanPath, dockerConfigDir)
 	isCurrent := strings.HasPrefix(cleanPath, currentDir)
 	isTemp := strings.HasPrefix(cleanPath, os.TempDir())
 
@@ -337,4 +351,36 @@ func New(filename string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// validateFilePath checks if the file path is valid and safe.
+// It returns the cleaned file path or an error.
+func validateFilePath(dockerVolume, fileName string) (string, error) {
+	if fileName == "" {
+		return "", errors.New("file name is empty")
+	}
+
+	cleanPath := filepath.Clean(strings.Trim(fileName, " "))
+
+	if !filepath.IsAbs(cleanPath) {
+		return "", fmt.Errorf("file %q has relative path", cleanPath)
+	}
+
+	// check cleanPath exists and it's a regular file
+	fileInfo, err := os.Stat(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("get file %q info: %w", cleanPath, err)
+	}
+
+	fileMode := fileInfo.Mode()
+	if !fileMode.IsRegular() {
+		return "", fmt.Errorf("file %q is not a regular file, mode=%v", cleanPath, fileMode)
+	}
+
+	tmpDir := os.TempDir()
+	if !(strings.HasPrefix(cleanPath, dockerVolume) || strings.HasPrefix(cleanPath, tmpDir)) {
+		return "", fmt.Errorf("file %q has invalid path", cleanPath)
+	}
+
+	return cleanPath, nil
 }

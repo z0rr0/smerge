@@ -3,6 +3,7 @@
   "port": 43210,
   "user_agent": "SMerge/1.0",
   "timeout": "10s",
+  "docker_volume": "/data",
   "debug": true,
   "groups": [
     {
@@ -23,6 +24,13 @@
           "url": "http://localhost:43212/subscription2",
           "encoded": true,
           "timeout": "10s"
+        },
+        {
+            "name": "subscription3",
+            "url": "/data/subscription3.txt",
+            "encoded": false,
+            "timeout": "2s",
+            "local": true
         }
       ]
     }

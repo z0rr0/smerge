@@ -7,6 +7,8 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -80,7 +82,7 @@ func TestCrawler_Get(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     cfg.URL(server.URL),
+						Path:    cfg.SubPath(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -104,7 +106,7 @@ func TestCrawler_Get(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     cfg.URL(server.URL),
+						Path:    cfg.SubPath(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -168,7 +170,7 @@ func TestCrawler_Run(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     cfg.URL(server.URL),
+						Path:    cfg.SubPath(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -184,12 +186,12 @@ func TestCrawler_Run(t *testing.T) {
 				Subscriptions: []cfg.Subscription{
 					{
 						Name:    "sub1",
-						URL:     cfg.URL(server.URL),
+						Path:    cfg.SubPath(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 					{
 						Name:    "sub2",
-						URL:     cfg.URL(server.URL),
+						Path:    cfg.SubPath(server.URL),
 						Timeout: cfg.Duration(time.Second),
 					},
 				},
@@ -238,6 +240,21 @@ func TestCrawler_Run(t *testing.T) {
 }
 
 func TestCrawler_fetchSubscription(t *testing.T) {
+	var tmpDir = t.TempDir()
+
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, "test.txt"))
+	if fileErr != nil {
+		t.Fatalf("failed to create test file: %v", fileErr)
+	}
+
+	if _, fileErr = localFile.Write([]byte("line10\nline20")); fileErr != nil {
+		t.Fatalf("failed to write to test file: %v", fileErr)
+	}
+
+	if fileErr = localFile.Close(); fileErr != nil {
+		t.Fatalf("failed to close test file: %v", fileErr)
+	}
+
 	tests := []struct {
 		name         string
 		handler      http.HandlerFunc
@@ -258,6 +275,16 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				Timeout: cfg.Duration(time.Second),
 			},
 			expected: []string{"line1", "line2"},
+		},
+		{
+			name: "local file",
+			subscription: cfg.Subscription{
+				Name:    "localFile",
+				Path:    cfg.SubPath(localFile.Name()),
+				Timeout: cfg.Duration(time.Second),
+				Local:   true,
+			},
+			expected: []string{"line10", "line20"},
 		},
 		{
 			name: "encoded response",
@@ -319,10 +346,13 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 		tc := tests[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(tc.handler)
-			defer server.Close()
+			if tc.handler != nil {
+				server := httptest.NewServer(tc.handler)
+				defer server.Close()
 
-			tc.subscription.URL = cfg.URL(server.URL)
+				tc.subscription.Path = cfg.SubPath(server.URL)
+			}
+
 			c := New([]cfg.Group{}, userAgent)
 			result := make(chan fetchResult)
 
@@ -361,7 +391,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 		Subscriptions: []cfg.Subscription{
 			{
 				Name:    "sub1",
-				URL:     cfg.URL(server.URL),
+				Path:    cfg.SubPath(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 		},
@@ -494,12 +524,12 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		Subscriptions: []cfg.Subscription{
 			{
 				Name:    "sub1",
-				URL:     cfg.URL(server.URL),
+				Path:    cfg.SubPath(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 			{
 				Name:    "sub2",
-				URL:     cfg.URL(server.URL),
+				Path:    cfg.SubPath(server.URL),
 				Timeout: cfg.Duration(time.Second),
 			},
 		},

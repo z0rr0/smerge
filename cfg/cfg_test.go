@@ -82,51 +82,100 @@ func TestNew(t *testing.T) {
 }
 
 func TestSubscriptionValidate(t *testing.T) {
+	tmpDir := os.TempDir()
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, "local.txt"))
+	if fileErr != nil {
+		t.Fatal(fileErr)
+	}
+
+	if fileErr = localFile.Close(); fileErr != nil {
+		t.Fatal(fileErr)
+	}
+
 	testCases := []struct {
-		name   string
-		sub    Subscription
-		err    error  // if nil - no error expected
-		errMsg string // a part of error message if error expected
+		name      string
+		sub       Subscription
+		dockerDir string
+		err       error  // if nil - no error expected
+		errMsg    string // a part of error message if error expected
 	}{
 		{
-			name:   "empty name",
-			sub:    Subscription{URL: "http://localhost:43211/subscription1"},
-			err:    ErrRequiredField,
-			errMsg: "subscription name is empty",
+			name:      "empty name",
+			sub:       Subscription{Path: "http://localhost:43211/subscription1"},
+			dockerDir: tmpDir,
+			err:       ErrRequiredField,
+			errMsg:    "subscription name is empty",
 		},
 		{
-			name:   "empty URL",
-			sub:    Subscription{Name: "subscription1"},
-			err:    ErrRequiredField,
-			errMsg: "subscription URL is empty",
+			name:      "empty SubPath",
+			sub:       Subscription{Name: "subscription1"},
+			dockerDir: tmpDir,
+			err:       ErrRequiredField,
+			errMsg:    "subscription path is empty",
 		},
 		{
 			name: "too short timeout",
 			sub: Subscription{
 				Name:    "subscription1",
-				URL:     "http://localhost:43211/subscription1",
+				Path:    "http://localhost:43211/subscription1",
 				Timeout: Duration(1),
 			},
-			err:    ErrDenyInterval,
-			errMsg: "timeout is too short, should be at least",
+			dockerDir: tmpDir,
+			err:       ErrDenyInterval,
+			errMsg:    "timeout is too short, should be at least",
 		},
 		{
-			name: "invalid URL",
+			name: "invalid SubPath",
 			sub: Subscription{
 				Name:    "subscription1",
-				URL:     "https://%.com",
+				Path:    "https://%.com",
 				Timeout: Duration(time.Second),
 			},
-			err:    ErrParse,
-			errMsg: "URL is invalid",
+			dockerDir: tmpDir,
+			err:       ErrParse,
+			errMsg:    "URL is invalid",
+		},
+		{
+			name: "invalid local SubPath",
+			sub: Subscription{
+				Name:    "subscription1",
+				Path:    SubPath("/etc/passwd"),
+				Timeout: Duration(time.Second),
+				Local:   true,
+			},
+			dockerDir: tmpDir,
+			err:       ErrParse,
+			errMsg:    "file path is invalid",
+		},
+		{
+			name: "local path without dockerDir",
+			sub: Subscription{
+				Name:    "subscription1",
+				Path:    SubPath(localFile.Name()),
+				Timeout: Duration(time.Second),
+				Local:   true,
+			},
+			err:    ErrRequiredField,
+			errMsg: "docker volume is empty for local subscription",
+		},
+		{
+			name: "valid local SubPath",
+			sub: Subscription{
+				Name:    "subscription1",
+				Path:    SubPath(localFile.Name()),
+				Timeout: Duration(time.Second),
+				Local:   true,
+			},
+			dockerDir: tmpDir,
 		},
 		{
 			name: "valid",
 			sub: Subscription{
 				Name:    "subscription1",
-				URL:     "http://localhost:43211/subscription1",
+				Path:    "http://localhost:43211/subscription1",
 				Timeout: Duration(time.Second),
 			},
+			dockerDir: tmpDir,
 		},
 	}
 
@@ -134,7 +183,7 @@ func TestSubscriptionValidate(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.sub.Validate()
+			err := tc.sub.Validate(tc.dockerDir)
 			if tc.err == nil {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
@@ -161,6 +210,16 @@ func TestSubscriptionValidate(t *testing.T) {
 
 func TestGroupValidate(t *testing.T) {
 	const sec = Duration(time.Second)
+	var tmpDir = os.TempDir()
+
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, "local.txt"))
+	if fileErr != nil {
+		t.Fatal(fileErr)
+	}
+
+	if fileErr = localFile.Close(); fileErr != nil {
+		t.Fatal(fileErr)
+	}
 
 	testCases := []struct {
 		name   string
@@ -208,9 +267,9 @@ func TestGroupValidate(t *testing.T) {
 				Name:   "group1",
 				Period: Duration(time.Hour),
 				Subscriptions: []Subscription{
-					{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: sec},
-					{Name: "subscription1", URL: "http://localhost:43211/sub2", Timeout: sec},
-					{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: sec},
+					{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: sec},
+					{Name: "subscription1", Path: "http://localhost:43211/sub2", Timeout: sec},
+					{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: sec},
 				},
 			},
 			err:    ErrDuplicate,
@@ -222,8 +281,14 @@ func TestGroupValidate(t *testing.T) {
 				Name:   "group1",
 				Period: Duration(time.Hour),
 				Subscriptions: []Subscription{
-					{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: sec},
-					{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: sec},
+					{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: sec},
+					{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: sec},
+					{
+						Name:    "subscription3",
+						Path:    SubPath(localFile.Name()),
+						Timeout: sec,
+						Local:   true,
+					},
 				},
 			},
 		},
@@ -233,7 +298,7 @@ func TestGroupValidate(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.group.Validate()
+			err := tc.group.Validate(tmpDir)
 			if tc.err == nil {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
@@ -348,7 +413,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group1",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
+							{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
 						},
 					},
 					{
@@ -356,7 +421,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group2",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
+							{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
 						},
 					},
 				},
@@ -375,7 +440,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group1",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
+							{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
 						},
 					},
 					{
@@ -383,7 +448,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group1",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
+							{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
 						},
 					},
 				},
@@ -402,7 +467,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group1",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
+							{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
 						},
 					},
 					{
@@ -410,7 +475,7 @@ func TestConfigValidate(t *testing.T) {
 						Endpoint: "/group2",
 						Period:   Duration(time.Hour),
 						Subscriptions: []Subscription{
-							{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
+							{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
 						},
 					},
 				},
@@ -454,7 +519,7 @@ func TestConfigGroupsEndpointsMap(t *testing.T) {
 			Endpoint: "/group1",
 			Period:   Duration(time.Hour),
 			Subscriptions: []Subscription{
-				{Name: "subscription1", URL: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
+				{Name: "subscription1", Path: "http://localhost:43211/sub1", Timeout: Duration(time.Second)},
 			},
 		},
 		{
@@ -462,7 +527,7 @@ func TestConfigGroupsEndpointsMap(t *testing.T) {
 			Endpoint: "/group2",
 			Period:   Duration(time.Hour),
 			Subscriptions: []Subscription{
-				{Name: "subscription2", URL: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
+				{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: Duration(time.Second)},
 			},
 		},
 	}
@@ -741,7 +806,7 @@ func TestSubscription_Filter(t *testing.T) {
 func TestURL_LogValue(t *testing.T) {
 	testCases := []struct {
 		name     string
-		url      URL
+		url      SubPath
 		expected string
 	}{
 		{
@@ -757,6 +822,11 @@ func TestURL_LogValue(t *testing.T) {
 			name:     "long",
 			url:      "https://localhost:43211/subscription1",
 			expected: "https://localhost:43211/subscrip...",
+		},
+		{
+			name:     "local",
+			url:      "/data/subscriptions/subscription1",
+			expected: "/data/subscriptions/subscription...",
 		},
 	}
 

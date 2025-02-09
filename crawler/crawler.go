@@ -239,8 +239,8 @@ func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscript
 		if err != nil {
 			return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
 		}
-		// file was opened successfully
-		// return a fake http.StatusOK status, only to have a consistent signature with fetchURLSubscription
+		// if a subscription's file was opened successfully, return a fake http.StatusOK status
+		// to maintain a consistent signature with fetchURLSubscription.
 		return fd, http.StatusOK, nil
 	case <-ctx.Done():
 		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, c.ctx.Err())
@@ -284,7 +284,7 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 
 	defer func() {
 		if e := reader.Close(); e != nil {
-			slog.Error("response body close error", "group", groupName, "subscription", sub.Name, "error", e)
+			slog.Error("reader close error", "group", groupName, "subscription", sub.Name, "error", e)
 		}
 	}()
 

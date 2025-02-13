@@ -31,7 +31,7 @@ jobs:
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v3
       with:
-        version: v1.63.4
+        version: v1.64.4
 
     - name: Run staticcheck
       uses: dominikh/staticcheck-action@v1.3.1

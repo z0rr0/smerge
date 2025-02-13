@@ -174,9 +174,9 @@ func (s *Subscription) Validate(dockerVolume string) error {
 }
 
 // filterIter returns an iterator for filtering subscription URLs by prefixes.
-func (s *Subscription) filterIter(subURLs []string) iter.Seq[string] {
+func (s *Subscription) filterIter(subURLs iter.Seq[string]) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for subURL := range slices.Values(subURLs) {
+		for subURL := range subURLs {
 			if s.HasPrefixes.Match(subURL) && !yield(subURL) {
 				return
 			}
@@ -190,7 +190,7 @@ func (s *Subscription) Filter(subURLs []string) []string {
 		return subURLs
 	}
 
-	return slices.Collect(s.filterIter(subURLs))
+	return slices.Collect(s.filterIter(slices.Values(subURLs)))
 }
 
 // Group is a collection of subscriptions.

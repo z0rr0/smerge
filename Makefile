@@ -1,9 +1,7 @@
 TARGET=smerge
 TS=$(shell date -u +"%FT%T")
-TAG=$(shell git tag | sort -V | tail -1)
-COMMIT=$(shell git log --oneline | head -1)
 VERSION=$(firstword $(COMMIT))
-LDFLAGS=-X main.Version=$(TAG) -X main.Revision=git:$(VERSION) -X main.BuildDate=$(TS)
+LDFLAGS=-X main.BuildDate=$(TS)
 DOCKER_TAG=z0rr0/smerge
 
 # coverage check example

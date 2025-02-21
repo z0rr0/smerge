@@ -1,7 +1,7 @@
 ARG GOLANG_VERSION="1.24.0"
 
 FROM golang:${GOLANG_VERSION}-alpine AS builder
-ARG LDFLAGS
+ARG LDFLAGS=""
 WORKDIR /go/src/github.com/z0rr0/smerge
 COPY . .
 RUN echo "LDFLAGS = $LDFLAGS"
@@ -19,6 +19,9 @@ LABEL org.opencontainers.image.authors="me@axv.email" \
 
 COPY --from=builder /go/src/github.com/z0rr0/smerge/smerge /bin/smerge
 RUN chmod 0755 /bin/smerge
+
+HEALTHCHECK --interval=5m --timeout=3s \
+  CMD wget -q --spider http://localhost:43210/health || exit 1
 
 VOLUME ["/data/"]
 EXPOSE 43210

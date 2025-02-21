@@ -13,6 +13,11 @@ import (
 	"github.com/z0rr0/smerge/crawler"
 )
 
+var (
+	// healthPaths is a map of health check paths.
+	healthPaths = map[string]struct{}{"/ok": {}, "/health": {}, "/ping": {}}
+)
+
 // responseWriter is a wrapper around http.ResponseWriter that captures the status code.
 type responseWriter struct {
 	http.ResponseWriter
@@ -128,10 +133,9 @@ func ValidationMiddleware(next http.Handler) http.Handler {
 // HealthCheckMiddleware is a middleware that handles health check requests.
 func HealthCheckMiddleware(next http.Handler, versionInfo string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const healthCheckPath = "/ok"
 		var okResponse = []byte("OK " + versionInfo)
 
-		if strings.TrimRight(r.URL.Path, "/") == healthCheckPath {
+		if _, ok := healthPaths[strings.TrimRight(r.URL.Path, "/")]; ok {
 			w.Header().Set("Content-Type", "text/plain")
 
 			if _, err := w.Write(okResponse); err != nil {

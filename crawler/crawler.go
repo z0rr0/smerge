@@ -18,6 +18,18 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
+var (
+	// bufferPool is a pool for bytes.Buffer for subscription data reading.
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 4096))
+		},
+	}
+
+	// decodeErrResponse is a public response for decode error.
+	decodeErrResponse = []byte("decode error")
+)
+
 // Getter is an interface for getting data by group name.
 // If force is true, the data will be fetched from the source.
 // If decode is true, the data will be decoded from base64 if request group has Encoded flag.
@@ -156,6 +168,7 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 
 		if n, err := base64.StdEncoding.Decode(dst, groupResult); err != nil {
 			slog.Error("decode error", "group", groupName, "error", err)
+			groupResult = decodeErrResponse
 		} else {
 			slog.Debug("decoded", "group", groupName, "size", n)
 			groupResult = dst[:n]
@@ -315,10 +328,13 @@ func (c *Crawler) fetchSubscription(groupName string, sub *cfg.Subscription, res
 // readSubscription reads the subscription data from the reader (HTTP response body).
 func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 	var (
-		buf = new(bytes.Buffer)
 		n   int64
 		err error
 	)
+
+	buf := bufferPool.Get().(*bytes.Buffer) // get a buffer from common pool
+	buf.Reset()
+	defer bufferPool.Put(buf)
 
 	if encoded {
 		decoder := base64.NewDecoder(base64.StdEncoding, r)

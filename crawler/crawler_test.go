@@ -378,11 +378,13 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 
 // TestCrawler_Shutdown tests the shutdown functionality
 func TestCrawler_Shutdown(t *testing.T) {
+	serverResponded := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(30 * time.Millisecond)
 		if _, err := w.Write([]byte("line1\nline2")); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
+		close(serverResponded)
 	}))
 	defer server.Close()
 
@@ -401,6 +403,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 	c := New([]cfg.Group{group}, userAgent)
 	c.Run()
 
+	<-serverResponded
 	time.Sleep(70 * time.Millisecond)
 
 	done := make(chan struct{})

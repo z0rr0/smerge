@@ -58,9 +58,10 @@ type fetchResult struct {
 // New creates a new crawler instance.
 func New(groups []cfg.Group, userAgent string) *Crawler {
 	const (
-		maxConnectionsPerHost = 100
-		maxIdleConnections    = 1000
-		minHandshakeTimeout   = 500 * time.Millisecond
+		retries               uint8 = 3
+		maxConnectionsPerHost       = 100
+		maxIdleConnections          = 1000
+		minHandshakeTimeout         = 500 * time.Millisecond
 	)
 	var (
 		timeout   time.Duration
@@ -77,27 +78,26 @@ func New(groups []cfg.Group, userAgent string) *Crawler {
 	slog.Info("timeouts", "timeout", timeout, "handshake", handshakeTimeout)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	transport := &http.Transport{
+		Proxy:             http.ProxyFromEnvironment,
+		MaxIdleConns:      maxIdleConnections,
+		MaxConnsPerHost:   maxConnectionsPerHost,
+		IdleConnTimeout:   timeout * 10,
+		ForceAttemptHTTP2: true,
+		DialContext: (&net.Dialer{
+			Timeout:   handshakeTimeout,
+			KeepAlive: timeout * 5,
+		}).DialContext,
+		TLSHandshakeTimeout:   handshakeTimeout,
+		ResponseHeaderTimeout: timeout,
+	}
+	client := NewRetryClient(retries, transport, timeout*2)
 
 	return &Crawler{
-		groups:    groupsMap,
-		result:    make(map[string][]byte, groupLen),
-		userAgent: userAgent,
-		client: &http.Client{
-			Transport: &http.Transport{
-				Proxy:             http.ProxyFromEnvironment,
-				MaxIdleConns:      maxIdleConnections,
-				MaxConnsPerHost:   maxConnectionsPerHost,
-				IdleConnTimeout:   timeout * 10,
-				ForceAttemptHTTP2: true,
-				DialContext: (&net.Dialer{
-					Timeout:   handshakeTimeout,
-					KeepAlive: timeout * 5,
-				}).DialContext,
-				TLSHandshakeTimeout:   handshakeTimeout,
-				ResponseHeaderTimeout: timeout,
-			},
-			Timeout: timeout * 2,
-		},
+		groups:     groupsMap,
+		result:     make(map[string][]byte, groupLen),
+		userAgent:  userAgent,
+		client:     client,
 		ctx:        ctx,
 		cancelFunc: cancel,
 	}

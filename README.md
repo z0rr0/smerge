@@ -20,6 +20,8 @@ Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
   "port": 43210,
   "user_agent": "SMerge/1.0",
   "timeout": "10s",
+  "docker_volume": "/data",
+  "retries": 3,
   "debug": true,
   "groups": [
     {

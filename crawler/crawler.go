@@ -21,8 +21,8 @@ import (
 var (
 	// bufferPool is a pool for bytes.Buffer for subscription data reading.
 	bufferPool = sync.Pool{
-		New: func() interface{} {
-			return bytes.NewBuffer(make([]byte, 0, 4096))
+		New: func() any {
+			return bytes.NewBuffer(make([]byte, 0, 2048))
 		},
 	}
 
@@ -56,12 +56,11 @@ type fetchResult struct {
 }
 
 // New creates a new crawler instance.
-func New(groups []cfg.Group, userAgent string) *Crawler {
+func New(groups []cfg.Group, userAgent string, retries uint8) *Crawler {
 	const (
-		retries               uint8 = 3
-		maxConnectionsPerHost       = 100
-		maxIdleConnections          = 1000
-		minHandshakeTimeout         = 500 * time.Millisecond
+		maxConnectionsPerHost = 100
+		maxIdleConnections    = 1000
+		minHandshakeTimeout   = 500 * time.Millisecond
 	)
 	var (
 		timeout   time.Duration
@@ -195,7 +194,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	}
 
 	urls := make([]string, 0, avgURLsLen)
-	for i := 0; i < subscriptionsLen; i++ {
+	for range subscriptionsLen {
 		if res := <-result; res.error != nil {
 			slog.Error("fetchError", "group", group.Name, "subscription", res.subscription, "error", res.error)
 		} else {

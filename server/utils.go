@@ -34,11 +34,11 @@ func GetRequestID(ctx context.Context) (string, bool) {
 
 // generateRequestID generates a new request ID. It uses 16 bytes of random data or current nanoseconds timestamp as a fallback.
 func generateRequestID() string {
-	var bytes = make([]byte, 16)
+	bytes := make([]byte, 16)
 
 	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
 		slog.Warn("failed to generate request ID", "error", err)
-		return strconv.Itoa(time.Now().Nanosecond())
+		return strconv.FormatInt(time.Now().UnixNano(), 16)
 	}
 	return hex.EncodeToString(bytes)
 }
@@ -46,16 +46,24 @@ func generateRequestID() string {
 // parseBool converts string value to boolean.
 // Accepted values: true, 1, yes, on, enabled, t, y.
 func parseBool(value string) bool {
+	value = strings.TrimSpace(value)
 	_, ok := acceptedTrue[strings.ToLower(value)]
 	return ok
 }
 
 // remoteAddress returns remote address from request.
 func remoteAddress(r *http.Request) string {
-	const httpIPHeader = "X-Real-IP"
+	const (
+		httpIPHeader       = "X-Real-IP"
+		httpIPForwardedFor = "X-Forwarded-For"
+	)
 
 	if r == nil {
 		return ""
+	}
+
+	if ra := r.Header.Get(httpIPForwardedFor); ra != "" {
+		return strings.SplitN(ra, ",", 2)[0]
 	}
 
 	if ra := r.Header.Get(httpIPHeader); ra != "" {

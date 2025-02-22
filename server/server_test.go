@@ -26,6 +26,7 @@ func TestRun(t *testing.T) {
 		Port:      43210,
 		Timeout:   cfg.Duration(time.Second),
 		UserAgent: "TestUserAgent",
+		Retries:   3,
 		Groups: []cfg.Group{
 			{
 				Name:     "test1",

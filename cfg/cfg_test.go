@@ -17,6 +17,8 @@ const configContent = `
   "port": 43210,
   "timeout": "10s",
   "workers": 1,
+  "user_agent": "SMerge/1.0",
+  "retries": 3,
   "debug": true,
   "groups": [
     {
@@ -366,6 +368,9 @@ func TestGroupMaxSubscriptionTimeout(t *testing.T) {
 }
 
 func TestConfigValidate(t *testing.T) {
+	timeout := Duration(time.Second)
+	userAgent := "test"
+
 	testCases := []struct {
 		name   string
 		config Config
@@ -385,16 +390,37 @@ func TestConfigValidate(t *testing.T) {
 			errMsg: "port is empty",
 		},
 		{
+			name:   "invalid timeout",
+			config: Config{Host: "localhost", Port: 43210, UserAgent: userAgent, Retries: 3},
+			err:    ErrRequiredField,
+			errMsg: "timeout is empty",
+		},
+		{
+			name:   "invalid user agent",
+			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, Retries: 3},
+			err:    ErrRequiredField,
+			errMsg: "user agent is empty",
+		},
+		{
+			name:   "no retries",
+			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent},
+			err:    ErrRequiredField,
+			errMsg: "retries is empty",
+		},
+		{
 			name:   "no groups",
-			config: Config{Host: "localhost", Port: 43210},
+			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent, Retries: 3},
 			err:    ErrRequiredField,
 			errMsg: "no groups defined",
 		},
 		{
 			name: "invalid group",
 			config: Config{
-				Host: "localhost",
-				Port: 43210,
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
 				Groups: []Group{
 					{Period: Duration(time.Hour)},
 				},
@@ -405,8 +431,11 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "duplicate group",
 			config: Config{
-				Host: "localhost",
-				Port: 43210,
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
 				Groups: []Group{
 					{
 						Name:     "group1",
@@ -432,8 +461,11 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "duplicate endpoint",
 			config: Config{
-				Host: "localhost",
-				Port: 43210,
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
 				Groups: []Group{
 					{
 						Name:     "group1",
@@ -459,8 +491,11 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "valid",
 			config: Config{
-				Host: "localhost",
-				Port: 43210,
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
 				Groups: []Group{
 					{
 						Name:     "group1",

@@ -251,6 +251,7 @@ type Config struct {
 	UserAgent    string   `json:"user_agent"`
 	Timeout      Duration `json:"timeout"`
 	DockerVolume string   `json:"docker_volume"`
+	Retries      uint8    `json:"retries"`
 	Debug        bool     `json:"debug"`
 	Groups       []Group  `json:"groups"`
 }
@@ -263,6 +264,18 @@ func (c *Config) Validate() error {
 
 	if c.Port == 0 {
 		return errors.Join(ErrRequiredField, fmt.Errorf("port is empty"))
+	}
+
+	if c.Timeout == 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("timeout is empty"))
+	}
+
+	if c.UserAgent == "" {
+		return errors.Join(ErrRequiredField, fmt.Errorf("user agent is empty"))
+	}
+
+	if c.Retries == 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("retries is empty"))
 	}
 
 	n := len(c.Groups)

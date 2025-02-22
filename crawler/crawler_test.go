@@ -18,7 +18,10 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
-const userAgent = "test-agent"
+const (
+	userAgentDefault       = "test-agent"
+	retriesDefault   uint8 = 3
+)
 
 func TestNew(t *testing.T) {
 	tests := []struct {
@@ -52,7 +55,7 @@ func TestNew(t *testing.T) {
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			c := New(tc.groups, userAgent)
+			c := New(tc.groups, userAgentDefault, retriesDefault)
 
 			if got := len(c.groups); got != tc.want {
 				t.Errorf("New() got = %v, want %v", got, tc.want)
@@ -121,7 +124,7 @@ func TestCrawler_Get(t *testing.T) {
 		tc := tests[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			c := New([]cfg.Group{tc.group}, userAgent)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault)
 			got := c.Get(tc.group.Name, true, tc.decode)
 
 			if !slices.Equal(got, tc.expected) {
@@ -208,7 +211,7 @@ func TestCrawler_Run(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dataReceived := make(chan struct{})
 			wg.Add(tc.expectedCalls)
-			c := New([]cfg.Group{tc.group}, userAgent)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault)
 
 			go func() {
 				wg.Wait()
@@ -353,7 +356,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				tc.subscription.Path = cfg.SubPath(server.URL)
 			}
 
-			c := New([]cfg.Group{}, userAgent)
+			c := New([]cfg.Group{}, userAgentDefault, retriesDefault)
 			result := make(chan fetchResult)
 
 			go c.fetchSubscription("test-group", &tc.subscription, result)
@@ -404,7 +407,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 		Period: cfg.Duration(50 * time.Millisecond),
 	}
 
-	c := New([]cfg.Group{group}, userAgent)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault)
 	c.Run()
 
 	<-serverResponded
@@ -543,7 +546,7 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		Period: cfg.Duration(time.Second),
 	}
 
-	c := New([]cfg.Group{group}, userAgent)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

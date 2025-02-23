@@ -12,11 +12,14 @@ import (
 // ErrMaxRetries is an error for max retries reached.
 var ErrMaxRetries = fmt.Errorf("max retries reached")
 
+type retryCheckFunc func(resp *http.Response) error
+
 // RetryRoundTripper does HTTP request with retries support.
 type RetryRoundTripper struct {
 	next       http.RoundTripper
 	maxRetries uint8
 	backoff    func(attempt uint8) time.Duration
+	retryCheck retryCheckFunc
 }
 
 func (rrt *RetryRoundTripper) do(req *http.Request, i uint8) (*http.Response, error) {
@@ -47,7 +50,7 @@ func (rrt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		reqCopy := cloneRequest(req)
 		resp, err = rrt.do(reqCopy, i)
 
-		if stop, err = stopRetry(resp, err); stop {
+		if stop, err = stopRetry(err, resp, rrt.retryCheck); stop {
 			return resp, err
 		}
 		slog.Warn("attempt", "number", i, "error", err)
@@ -61,12 +64,13 @@ func (rrt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 // NewRetryClient creates a new HTTP client with retries support.
-func NewRetryClient(maxRetries uint8, roundTripper http.RoundTripper, timeout time.Duration) *http.Client {
+func NewRetryClient(maxRetries uint8, rt http.RoundTripper, timeout time.Duration, rc retryCheckFunc) *http.Client {
 	return &http.Client{
 		Transport: &RetryRoundTripper{
-			next:       roundTripper,
+			next:       rt,
 			maxRetries: maxRetries,
 			backoff:    calcDelay,
+			retryCheck: rc,
 		},
 		Timeout: timeout,
 	}
@@ -92,7 +96,7 @@ func calcDelay(attempt uint8) time.Duration {
 
 // stopRetry checks if we need to stop retries.
 // If the first return value is true, then we need to stop retries.
-func stopRetry(resp *http.Response, err error) (bool, error) {
+func stopRetry(err error, resp *http.Response, retryCheck retryCheckFunc) (bool, error) {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return true, err
@@ -101,9 +105,20 @@ func stopRetry(resp *http.Response, err error) (bool, error) {
 		return false, err
 	}
 
-	if resp.StatusCode >= http.StatusInternalServerError {
-		return false, fmt.Errorf("status code: %d", resp.StatusCode)
+	if retryErr := retryCheck(resp); retryErr != nil {
+		return false, retryErr
 	}
 
 	return true, nil
+}
+
+// retryInternalServerError checks if we need to retry on internal server error.
+// It returns nil then we need to stop retries.
+// It is a custom variant of retryCheckFunc.
+func retryInternalServerError(resp *http.Response) error {
+	if resp.StatusCode < http.StatusInternalServerError {
+		return nil
+	}
+
+	return fmt.Errorf("status code: %d", resp.StatusCode)
 }

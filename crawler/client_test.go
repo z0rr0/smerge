@@ -93,6 +93,7 @@ func TestRetryRoundTripper_RoundTrip(t *testing.T) {
 				next:       mock,
 				maxRetries: tc.maxRetries,
 				backoff:    func(attempt uint8) time.Duration { return time.Millisecond },
+				retryCheck: retryInternalServerError,
 			}
 
 			req, _ := http.NewRequest("GET", "https://example.com", nil)
@@ -140,6 +141,7 @@ func TestRetryRoundTripper_CancelContext(t *testing.T) {
 		next:       mock,
 		maxRetries: 3,
 		backoff:    func(attempt uint8) time.Duration { return 40 * time.Millisecond },
+		retryCheck: retryInternalServerError,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -185,12 +187,14 @@ func TestStopRetry(t *testing.T) {
 	tests := []struct {
 		name string
 		resp *http.Response
+		rc   retryCheckFunc
 		err  error
 		stop bool
 	}{
 		{
 			name: "no error, 200 response",
 			resp: &http.Response{StatusCode: http.StatusOK},
+			rc:   retryInternalServerError,
 			stop: true,
 		},
 		{
@@ -200,18 +204,36 @@ func TestStopRetry(t *testing.T) {
 		{
 			name: "500 server error",
 			resp: &http.Response{StatusCode: http.StatusInternalServerError},
+			rc:   retryInternalServerError,
 		},
 		{
 			name: "404 not found",
 			resp: &http.Response{StatusCode: http.StatusNotFound},
+			rc:   retryInternalServerError,
 			stop: true,
+		},
+		{
+			name: "context canceled",
+			err:  context.Canceled,
+			stop: true,
+		},
+		{
+			name: "custom retry check",
+			resp: &http.Response{StatusCode: http.StatusBadRequest},
+			rc:   func(resp *http.Response) error { return nil },
+			stop: true,
+		},
+		{
+			name: "custom retry check with error",
+			resp: &http.Response{StatusCode: http.StatusBadRequest},
+			rc:   func(resp *http.Response) error { return errors.New("test error") },
 		},
 	}
 
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			stop, _ := stopRetry(tc.resp, tc.err)
+			stop, _ := stopRetry(tc.err, tc.resp, tc.rc)
 
 			if stop != tc.stop {
 				t.Errorf("stopRetry() = %v, want %v", stop, tc.stop)
@@ -244,7 +266,7 @@ func TestNewRetryClient(t *testing.T) {
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewRetryClient(tc.maxRetries, tc.transport, tc.timeout)
+			client := NewRetryClient(tc.maxRetries, tc.transport, tc.timeout, retryInternalServerError)
 
 			if client == nil {
 				t.Fatal("NewRetryClient() returned nil")
@@ -287,7 +309,7 @@ func TestRetryRoundTripper_Integration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewRetryClient(3, http.DefaultTransport, 5*time.Second)
+	client := NewRetryClient(3, http.DefaultTransport, 5*time.Second, retryInternalServerError)
 	resp, err := client.Get(server.URL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

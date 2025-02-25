@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	httpIPHeader       = "X-Real-IP"
+	httpIPForwardedFor = "X-Forwarded-For"
+)
+
 var (
 	// acceptedTrue is a map of accepted true values.
 	acceptedTrue = map[string]struct{}{"true": {}, "t": {}, "yes": {}, "y": {}, "on": {}, "enabled": {}, "1": {}}
@@ -53,11 +58,6 @@ func parseBool(value string) bool {
 
 // remoteAddress returns remote address from request.
 func remoteAddress(r *http.Request) string {
-	const (
-		httpIPHeader       = "X-Real-IP"
-		httpIPForwardedFor = "X-Forwarded-For"
-	)
-
 	if r == nil {
 		return ""
 	}

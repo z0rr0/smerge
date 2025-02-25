@@ -13,6 +13,8 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
+const timeout = cfg.Duration(time.Millisecond * 10)
+
 func TestRun(t *testing.T) {
 	subsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte("line1\nline2")); err != nil {
@@ -24,7 +26,7 @@ func TestRun(t *testing.T) {
 	config := &cfg.Config{
 		Host:      "localhost",
 		Port:      43210,
-		Timeout:   cfg.Duration(time.Second),
+		Timeout:   timeout,
 		UserAgent: "TestUserAgent",
 		Retries:   3,
 		Groups: []cfg.Group{
@@ -33,7 +35,7 @@ func TestRun(t *testing.T) {
 				Endpoint: "/test1",
 				Period:   cfg.Duration(time.Hour),
 				Subscriptions: []cfg.Subscription{
-					{Name: "sub1", Path: cfg.SubPath(subsServer.URL), Timeout: cfg.Duration(time.Second)},
+					{Name: "sub1", Path: cfg.SubPath(subsServer.URL), Timeout: timeout},
 				},
 			},
 			{Name: "test2", Endpoint: "/test2", Period: cfg.Duration(time.Second)},
@@ -144,8 +146,8 @@ func TestRunWithBadAddress(t *testing.T) {
 	config := &cfg.Config{
 		Host:    "invalid-host-name-that-should-not-resolve",
 		Port:    12345,
-		Timeout: cfg.Duration(time.Second),
-		Groups:  []cfg.Group{{Name: "test", Period: cfg.Duration(time.Second)}},
+		Timeout: timeout,
+		Groups:  []cfg.Group{{Name: "test", Period: timeout}},
 	}
 
 	done := make(chan struct{})

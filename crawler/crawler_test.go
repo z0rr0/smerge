@@ -3,6 +3,7 @@ package crawler
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -73,10 +74,13 @@ func TestCrawler_Get(t *testing.T) {
 	defer server.Close()
 
 	tests := []struct {
-		name     string
-		group    cfg.Group
-		expected []byte
-		decode   bool
+		name        string
+		group       cfg.Group
+		force       bool
+		expected    []byte
+		decode      bool
+		forceData   []byte // for error emulation
+		errExpected bool
 	}{
 		{
 			name: "basic get",
@@ -91,6 +95,7 @@ func TestCrawler_Get(t *testing.T) {
 				},
 				Period: cfg.Duration(time.Second),
 			},
+			force:    true,
 			expected: []byte("line1\nline2"),
 		},
 		{
@@ -100,11 +105,12 @@ func TestCrawler_Get(t *testing.T) {
 				Subscriptions: []cfg.Subscription{},
 				Period:        cfg.Duration(time.Second),
 			},
+			force: true,
 		},
 		{
 			name: "decode group",
 			group: cfg.Group{
-				Name:    "test1",
+				Name:    "test3",
 				Encoded: true,
 				Subscriptions: []cfg.Subscription{
 					{
@@ -115,8 +121,27 @@ func TestCrawler_Get(t *testing.T) {
 				},
 				Period: cfg.Duration(time.Second),
 			},
+			force:    true,
 			expected: []byte("line1\nline2"),
 			decode:   true,
+		},
+		{
+			name: "get error",
+			group: cfg.Group{
+				Name:    "test4",
+				Encoded: true,
+				Subscriptions: []cfg.Subscription{
+					{
+						Name:    "sub1",
+						Path:    cfg.SubPath(server.URL),
+						Timeout: cfg.Duration(time.Second),
+					},
+				},
+				Period: cfg.Duration(time.Second),
+			},
+			decode:      true,
+			forceData:   []byte("invalid base64!@#$"),
+			errExpected: true,
 		},
 	}
 
@@ -125,7 +150,29 @@ func TestCrawler_Get(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault)
-			got := c.Get(tc.group.Name, true, tc.decode)
+
+			if tc.forceData != nil {
+				c.Lock()
+				c.result[tc.group.Name] = tc.forceData
+				c.Unlock()
+			}
+
+			got, err := c.Get(tc.group.Name, tc.force, tc.decode)
+			if err != nil {
+				if !tc.errExpected {
+					t.Errorf("unexpected error: %v", err)
+				} else {
+					if !errors.Is(err, ErrDecodeGroup) {
+						t.Errorf("expected ErrDecodeGroup, got: %v", err)
+					}
+				}
+				return
+			} else {
+				if tc.errExpected {
+					t.Error("expected error")
+					return
+				}
+			}
 
 			if !slices.Equal(got, tc.expected) {
 				t.Errorf("got = %v, want %v", got, tc.expected)

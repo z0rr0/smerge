@@ -26,15 +26,15 @@ var (
 		},
 	}
 
-	// decodeErrResponse is a public response for decode error.
-	decodeErrResponse = []byte("decode error")
+	// ErrDecodeGroup is a public error for decode error.
+	ErrDecodeGroup = fmt.Errorf("decode error")
 )
 
 // Getter is an interface for getting data by group name.
 // If force is true, the data will be fetched from the source.
 // If decode is true, the data will be decoded from base64 if request group has Encoded flag.
 type Getter interface {
-	Get(groupName string, force bool, decode bool) []byte
+	Get(groupName string, force bool, decode bool) ([]byte, error)
 }
 
 // Crawler is a main crawler structure.
@@ -151,7 +151,7 @@ func (c *Crawler) needDecode(groupName string, decode bool, resultSize int) bool
 }
 
 // Get returns the group data.
-func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
+func (c *Crawler) Get(groupName string, force bool, decode bool) ([]byte, error) {
 	if force {
 		c.fetchGroup(c.groups[groupName])
 	}
@@ -167,14 +167,14 @@ func (c *Crawler) Get(groupName string, force bool, decode bool) []byte {
 
 		if n, err := base64.StdEncoding.Decode(dst, groupResult); err != nil {
 			slog.Error("decode error", "group", groupName, "error", err)
-			groupResult = decodeErrResponse
+			return nil, ErrDecodeGroup
 		} else {
 			slog.Debug("decoded", "group", groupName, "size", n)
 			groupResult = dst[:n]
 		}
 	}
 
-	return groupResult
+	return groupResult, nil
 }
 
 // fetchGroup fetches all subscriptions for the group.

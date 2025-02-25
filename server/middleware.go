@@ -162,10 +162,16 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 
 		force := parseBool(r.FormValue("force"))
 		decode := parseBool(r.FormValue("decode"))
-		groupData := cr.Get(group.Name, force, decode)
+		groupData, err := cr.Get(group.Name, force, decode)
+
+		if err != nil {
+			slog.ErrorContext(r.Context(), "handle group", "group", group.Name, "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "text/plain")
-		if _, err := w.Write(groupData); err != nil {
+		if _, writeErr := w.Write(groupData); writeErr != nil {
 			ctx := r.Context()
 			reqID, exists := GetRequestID(ctx)
 
@@ -174,7 +180,7 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 				slog.WarnContext(ctx, "request id not found", "method", r.Method, "path", r.URL.Path)
 			}
 
-			slog.ErrorContext(ctx, "response write error", "id", reqID, "error", err)
+			slog.ErrorContext(ctx, "response write error", "id", reqID, "error", writeErr)
 		}
 	}
 }

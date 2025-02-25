@@ -100,12 +100,13 @@ func TestParseBool(t *testing.T) {
 
 func TestRemoteAddress(t *testing.T) {
 	tests := []struct {
-		name       string
-		request    *http.Request
-		withHeader bool
-		header     string
-		remoteAddr string
-		expected   string
+		name        string
+		request     *http.Request
+		withHeader  bool
+		withForward bool
+		header      string
+		remoteAddr  string
+		expected    string
 	}{
 		{
 			name:       "nil request",
@@ -135,6 +136,14 @@ func TestRemoteAddress(t *testing.T) {
 			remoteAddr: "192.168.1.2:1234",
 			expected:   "192.168.1.2:1234",
 		},
+		{
+			name:        "with forward header",
+			request:     httptest.NewRequest("GET", "/", nil),
+			withForward: true,
+			header:      "192.168.1.1",
+			remoteAddr:  "192.168.1.2:1234",
+			expected:    "192.168.1.1",
+		},
 	}
 
 	for i := range tests {
@@ -143,8 +152,12 @@ func TestRemoteAddress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.request != nil {
 				if tc.withHeader {
-					tc.request.Header.Set("X-Real-IP", tc.header)
+					tc.request.Header.Set(httpIPHeader, tc.header)
 				}
+				if tc.withForward {
+					tc.request.Header.Set(httpIPForwardedFor, tc.header)
+				}
+
 				tc.request.RemoteAddr = tc.remoteAddr
 			}
 

@@ -51,7 +51,7 @@ func (rrt *RetryRoundTripper) do(req *http.Request, i uint8) (*http.Response, er
 	return resp, nil
 }
 
-// RoundTrip выполняет HTTP-запрос с поддержкой повторных попыток
+// RoundTrip does HTTP request with retries support.
 func (rrt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	var (
 		resp *http.Response

@@ -9,8 +9,13 @@ import (
 	"time"
 )
 
-// ErrMaxRetries is an error for max retries reached.
-var ErrMaxRetries = fmt.Errorf("max retries reached")
+var (
+	// ErrMaxRetries is an error for max retries reached.
+	ErrMaxRetries = fmt.Errorf("max retries reached")
+
+	// ErrRequest is an error if request failed.
+	ErrRequest = fmt.Errorf("request error")
+)
 
 type retryCheckFunc func(resp *http.Response) error
 
@@ -34,7 +39,12 @@ func (rrt *RetryRoundTripper) do(req *http.Request, i uint8) (*http.Response, er
 		slog.Debug("attempt", "number", i, "delay", delay)
 	}
 
-	return rrt.next.RoundTrip(req)
+	resp, err := rrt.next.RoundTrip(req)
+	if err != nil {
+		return nil, errors.Join(ErrRequest, err)
+	}
+
+	return resp, nil
 }
 
 // RoundTrip выполняет HTTP-запрос с поддержкой повторных попыток
@@ -60,6 +70,7 @@ func (rrt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		return nil, errors.Join(ErrMaxRetries, err)
 	}
 
+	// only if rrt.MaxRetries == 0
 	return nil, ErrMaxRetries
 }
 
@@ -78,9 +89,7 @@ func NewRetryClient(maxRetries uint8, rt http.RoundTripper, timeout time.Duratio
 
 // cloneRequest creates a copy of the request.
 func cloneRequest(req *http.Request) *http.Request {
-	r2 := new(http.Request)
-	*r2 = *req
-	return r2
+	return req.Clone(req.Context())
 }
 
 // calcDelay returns delay for the next retry attempt.
@@ -106,6 +115,9 @@ func stopRetry(err error, resp *http.Response, retryCheck retryCheckFunc) (bool,
 	}
 
 	if retryErr := retryCheck(resp); retryErr != nil {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			retryErr = errors.Join(retryErr, closeErr)
+		}
 		return false, retryErr
 	}
 

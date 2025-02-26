@@ -17,6 +17,18 @@ type mockRoundTripper struct {
 	calls     int
 }
 
+type mockReadCloser struct {
+	err error
+}
+
+func (m *mockReadCloser) Read(_ []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (m *mockReadCloser) Close() error {
+	return m.err
+}
+
 func (m *mockRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
 	if m.calls >= len(m.responses) {
 		return nil, errors.New("no more responses")
@@ -55,7 +67,7 @@ func TestRetryRoundTripper_RoundTrip(t *testing.T) {
 			name:       "retry for 5xx status code",
 			maxRetries: 3,
 			responses: []*http.Response{
-				{StatusCode: http.StatusInternalServerError},
+				{StatusCode: http.StatusInternalServerError, Body: &mockReadCloser{}},
 				{StatusCode: http.StatusOK},
 			},
 			errors:       []error{nil, nil},
@@ -72,10 +84,14 @@ func TestRetryRoundTripper_RoundTrip(t *testing.T) {
 			name:       "all retries give 5xx",
 			maxRetries: 2,
 			responses: []*http.Response{
-				{StatusCode: http.StatusInternalServerError},
-				{StatusCode: http.StatusInternalServerError},
+				{StatusCode: http.StatusInternalServerError, Body: &mockReadCloser{errors.New("test error")}},
+				{StatusCode: http.StatusInternalServerError, Body: &mockReadCloser{}},
 			},
 			errors:      []error{nil, nil},
+			expectError: true,
+		},
+		{
+			name:        "no retries",
 			expectError: true,
 		},
 	}
@@ -192,7 +208,7 @@ func TestStopRetry(t *testing.T) {
 		stop bool
 	}{
 		{
-			name: "no error, 200 response",
+			name: "no error 200 response",
 			resp: &http.Response{StatusCode: http.StatusOK},
 			rc:   retryInternalServerError,
 			stop: true,
@@ -203,7 +219,7 @@ func TestStopRetry(t *testing.T) {
 		},
 		{
 			name: "500 server error",
-			resp: &http.Response{StatusCode: http.StatusInternalServerError},
+			resp: &http.Response{StatusCode: http.StatusInternalServerError, Body: &mockReadCloser{}},
 			rc:   retryInternalServerError,
 		},
 		{
@@ -225,7 +241,7 @@ func TestStopRetry(t *testing.T) {
 		},
 		{
 			name: "custom retry check with error",
-			resp: &http.Response{StatusCode: http.StatusBadRequest},
+			resp: &http.Response{StatusCode: http.StatusBadRequest, Body: &mockReadCloser{}},
 			rc:   func(resp *http.Response) error { return errors.New("test error") },
 		},
 	}

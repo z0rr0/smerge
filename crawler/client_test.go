@@ -106,10 +106,10 @@ func TestRetryRoundTripper_RoundTrip(t *testing.T) {
 			}
 
 			rrt := &RetryRoundTripper{
-				next:       mock,
-				maxRetries: tc.maxRetries,
-				backoff:    func(attempt uint8) time.Duration { return time.Millisecond },
-				retryCheck: retryInternalServerError,
+				next:          mock,
+				maxRetries:    tc.maxRetries,
+				delayStrategy: func(attempt uint8) time.Duration { return time.Millisecond },
+				retryCheck:    retryInternalServerError,
 			}
 
 			req, _ := http.NewRequest("GET", "https://example.com", nil)
@@ -154,10 +154,10 @@ func TestRetryRoundTripper_CancelContext(t *testing.T) {
 	}
 
 	rrt := &RetryRoundTripper{
-		next:       mock,
-		maxRetries: 3,
-		backoff:    func(attempt uint8) time.Duration { return 40 * time.Millisecond },
-		retryCheck: retryInternalServerError,
+		next:          mock,
+		maxRetries:    3,
+		delayStrategy: func(attempt uint8) time.Duration { return 40 * time.Millisecond },
+		retryCheck:    retryInternalServerError,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -282,7 +282,7 @@ func TestNewRetryClient(t *testing.T) {
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewRetryClient(tc.maxRetries, tc.transport, tc.timeout, retryInternalServerError)
+			client := NewRetryClient(tc.maxRetries, tc.transport, tc.timeout, retryInternalServerError, calcDelay)
 
 			if client == nil {
 				t.Fatal("NewRetryClient() returned nil")
@@ -301,8 +301,8 @@ func TestNewRetryClient(t *testing.T) {
 				t.Errorf("rrt.maxRetries = %v, want %v", rrt.maxRetries, tc.maxRetries)
 			}
 
-			if rrt.backoff == nil {
-				t.Error("rrt.backoff is nil")
+			if rrt.delayStrategy == nil {
+				t.Error("rrt.delayStrategy is nil")
 			}
 		})
 	}
@@ -325,7 +325,7 @@ func TestRetryRoundTripper_Integration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewRetryClient(3, http.DefaultTransport, 5*time.Second, retryInternalServerError)
+	client := NewRetryClient(3, http.DefaultTransport, 5*time.Second, retryInternalServerError, calcDelay)
 	resp, err := client.Get(server.URL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

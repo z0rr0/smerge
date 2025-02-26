@@ -90,7 +90,7 @@ func New(groups []cfg.Group, userAgent string, retries uint8) *Crawler {
 		TLSHandshakeTimeout:   handshakeTimeout,
 		ResponseHeaderTimeout: timeout,
 	}
-	client := NewRetryClient(retries, transport, timeout*2, retryInternalServerError)
+	client := NewRetryClient(retries, transport, timeout*2, retryInternalServerError, calcDelay)
 
 	return &Crawler{
 		groups:     groupsMap,

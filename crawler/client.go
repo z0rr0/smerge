@@ -17,19 +17,23 @@ var (
 	ErrRequest = fmt.Errorf("request error")
 )
 
+// retryCheckFunc is a function that checks if we need to retry the request.
 type retryCheckFunc func(resp *http.Response) error
+
+// delayFunc is a function that returns delay for the next retry attempt.
+type delayFunc func(attempt uint8) time.Duration
 
 // RetryRoundTripper does HTTP request with retries support.
 type RetryRoundTripper struct {
-	next       http.RoundTripper
-	maxRetries uint8
-	backoff    func(attempt uint8) time.Duration
-	retryCheck retryCheckFunc
+	next          http.RoundTripper
+	maxRetries    uint8
+	delayStrategy delayFunc
+	retryCheck    retryCheckFunc
 }
 
 func (rrt *RetryRoundTripper) do(req *http.Request, i uint8) (*http.Response, error) {
 	ctx := req.Context()
-	delay := rrt.backoff(i)
+	delay := rrt.delayStrategy(i)
 
 	select {
 	case <-ctx.Done():
@@ -75,13 +79,13 @@ func (rrt *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 // NewRetryClient creates a new HTTP client with retries support.
-func NewRetryClient(maxRetries uint8, rt http.RoundTripper, timeout time.Duration, rc retryCheckFunc) *http.Client {
+func NewRetryClient(maxRetries uint8, rt http.RoundTripper, timeout time.Duration, rc retryCheckFunc, ds delayFunc) *http.Client {
 	return &http.Client{
 		Transport: &RetryRoundTripper{
-			next:       rt,
-			maxRetries: maxRetries,
-			backoff:    calcDelay,
-			retryCheck: rc,
+			next:          rt,
+			maxRetries:    maxRetries,
+			delayStrategy: ds,
+			retryCheck:    rc,
 		},
 		Timeout: timeout,
 	}

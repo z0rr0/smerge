@@ -81,7 +81,7 @@ func (prefixes Prefixes) LogValue() slog.Value {
 	var b strings.Builder
 	b.WriteString("[")
 
-	for i := 0; i < count-1; i++ {
+	for i := range count - 1 {
 		b.WriteString(fmt.Sprintf("'%s'", prefixes[i]))
 		b.WriteString(", ")
 	}
@@ -338,7 +338,7 @@ func readConfig(filename string) ([]byte, error) {
 
 	if filepath.IsAbs(cleanPath) {
 		if !(isTemp || isDocker || isCurrent) {
-			return nil, fmt.Errorf("file %q has abusolute path and not in the allowed directories", cleanPath)
+			return nil, fmt.Errorf("file %q has an absolute path and is not in the allowed directories", cleanPath)
 		}
 	} else {
 		cleanPath = filepath.Join(currentDir, cleanPath)

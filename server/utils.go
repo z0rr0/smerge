@@ -13,8 +13,12 @@ import (
 )
 
 const (
+	// HTTP headers for IP address.
 	httpIPHeader       = "X-Real-IP"
 	httpIPForwardedFor = "X-Forwarded-For"
+
+	// requestIDLen is a length of generated request ID in bytes.
+	requestIDLen = 16
 )
 
 var (
@@ -25,10 +29,11 @@ var (
 // ctxKey is a type for context key.
 type ctxKey string
 
-// requestID is a key for request ID in context.
+// requestID is a key for request ID in a request context.
 const requestID ctxKey = "requestID"
 
 // GetRequestID returns request ID from context.
+// The second return value indicates if the request ID was found.
 func GetRequestID(ctx context.Context) (string, bool) {
 	if reqID, ok := ctx.Value(requestID).(string); ok {
 		return reqID, ok
@@ -37,9 +42,10 @@ func GetRequestID(ctx context.Context) (string, bool) {
 	return "", false
 }
 
-// generateRequestID generates a new request ID. It uses 16 bytes of random data or current nanoseconds timestamp as a fallback.
+// generateRequestID generates a new request ID.
+// It uses requestIDLen bytes of random data or current nanoseconds timestamp as a fallback.
 func generateRequestID() string {
-	bytes := make([]byte, 16)
+	bytes := make([]byte, requestIDLen)
 
 	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
 		slog.Warn("failed to generate request ID", "error", err)

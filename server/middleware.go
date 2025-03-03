@@ -13,10 +13,8 @@ import (
 	"github.com/z0rr0/smerge/crawler"
 )
 
-var (
-	// healthPaths is a map of health check paths.
-	healthPaths = map[string]struct{}{"/ok": {}, "/health": {}, "/ping": {}}
-)
+// healthPaths is a map of health check paths.
+var healthPaths = map[string]struct{}{"/ok": {}, "/health": {}, "/ping": {}}
 
 // responseWriter is a wrapper around http.ResponseWriter that captures the status code.
 type responseWriter struct {

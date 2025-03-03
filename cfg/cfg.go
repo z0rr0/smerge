@@ -327,6 +327,7 @@ func (c *Config) GroupsEndpoints() map[string]*Group {
 func readConfig(filename string) ([]byte, error) {
 	const dockerConfigDir = "/data"
 	currentDir, err := os.Getwd()
+
 	if err != nil {
 		return nil, fmt.Errorf("get current dir: %w", err)
 	}
@@ -354,7 +355,7 @@ func New(filename string) (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	var config = new(Config)
+	config := new(Config)
 	if err = json.Unmarshal(jsonData, config); err != nil {
 		return nil, errors.Join(ErrParse, fmt.Errorf("unmarshal config: %w", err))
 	}

@@ -18,11 +18,14 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
+// bufferSize is a size of buffer for reading subscription data.
+const bufferSize = 3072
+
 var (
 	// bufferPool is a pool for bytes.Buffer for subscription data reading.
 	bufferPool = sync.Pool{
 		New: func() any {
-			return bytes.NewBuffer(make([]byte, 0, 2048))
+			return bytes.NewBuffer(make([]byte, 0, bufferSize))
 		},
 	}
 

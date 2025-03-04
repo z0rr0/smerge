@@ -1,4 +1,3 @@
-// crawler_test.go
 package crawler
 
 import (
@@ -20,8 +19,9 @@ import (
 )
 
 const (
-	userAgentDefault       = "test-agent"
-	retriesDefault   uint8 = 3
+	userAgentDefault           = "test-agent"
+	retriesDefault       uint8 = 3
+	maxConcurrentDefault       = 10
 )
 
 func TestNew(t *testing.T) {
@@ -56,7 +56,7 @@ func TestNew(t *testing.T) {
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			c := New(tc.groups, userAgentDefault, retriesDefault)
+			c := New(tc.groups, userAgentDefault, retriesDefault, maxConcurrentDefault)
 
 			if got := len(c.groups); got != tc.want {
 				t.Errorf("New() got = %v, want %v", got, tc.want)
@@ -149,7 +149,7 @@ func TestCrawler_Get(t *testing.T) {
 		tc := tests[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
 
 			if tc.forceData != nil {
 				c.Lock()
@@ -197,9 +197,11 @@ func compareResults(got, want map[string][]byte) error {
 }
 
 func TestCrawler_Run(t *testing.T) {
+	const serverTime = 10 * time.Millisecond
 	var wg sync.WaitGroup
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(serverTime)
 		if _, err := w.Write([]byte("line1\nline2")); err != nil {
 			t.Errorf("failed to write response: %v", err)
 		}
@@ -210,6 +212,7 @@ func TestCrawler_Run(t *testing.T) {
 	tests := []struct {
 		name           string
 		group          cfg.Group
+		maxConcurrent  int
 		expectedCalls  int
 		expectedResult map[string][]byte
 	}{
@@ -226,7 +229,8 @@ func TestCrawler_Run(t *testing.T) {
 				},
 				Period: cfg.Duration(25 * time.Millisecond),
 			},
-			expectedCalls:  2,
+			maxConcurrent:  10,
+			expectedCalls:  2, // `1 * 2` due to 1st init
 			expectedResult: map[string][]byte{"group1": []byte("line1\nline2")},
 		},
 		{
@@ -247,8 +251,36 @@ func TestCrawler_Run(t *testing.T) {
 				},
 				Period: cfg.Duration(25 * time.Millisecond),
 			},
+			maxConcurrent:  10,
 			expectedCalls:  4,
 			expectedResult: map[string][]byte{"group2": []byte("line1\nline1\nline2\nline2")},
+		},
+		{
+			name: "limited concurrency",
+			group: cfg.Group{
+				Name: "group3",
+				Subscriptions: []cfg.Subscription{
+					{
+						Name:    "sub1",
+						Path:    cfg.SubPath(server.URL),
+						Timeout: cfg.Duration(time.Second),
+					},
+					{
+						Name:    "sub2",
+						Path:    cfg.SubPath(server.URL),
+						Timeout: cfg.Duration(time.Second),
+					},
+					{
+						Name:    "sub3",
+						Path:    cfg.SubPath(server.URL),
+						Timeout: cfg.Duration(time.Second),
+					},
+				},
+				Period: cfg.Duration(25 * time.Millisecond),
+			},
+			maxConcurrent:  1,
+			expectedCalls:  6,
+			expectedResult: map[string][]byte{"group3": []byte("line1\nline1\nline1\nline2\nline2\nline2")},
 		},
 	}
 
@@ -258,7 +290,7 @@ func TestCrawler_Run(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dataReceived := make(chan struct{})
 			wg.Add(tc.expectedCalls)
-			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, tc.maxConcurrent)
 
 			go func() {
 				wg.Wait()
@@ -270,7 +302,7 @@ func TestCrawler_Run(t *testing.T) {
 			select {
 			case <-dataReceived:
 				t.Logf("received all data, test: %s", tc.name)
-			case <-time.After(2 * time.Second):
+			case <-time.After(5 * time.Second):
 				t.Error("timeout waiting for crawler to fetch data")
 			}
 
@@ -403,7 +435,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				tc.subscription.Path = cfg.SubPath(server.URL)
 			}
 
-			c := New([]cfg.Group{}, userAgentDefault, retriesDefault)
+			c := New([]cfg.Group{}, userAgentDefault, retriesDefault, maxConcurrentDefault)
 			result := make(chan fetchResult)
 
 			go c.fetchSubscription("test-group", &tc.subscription, result)
@@ -454,7 +486,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 		Period: cfg.Duration(50 * time.Millisecond),
 	}
 
-	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
 	c.Run()
 
 	<-serverResponded
@@ -593,7 +625,7 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		Period: cfg.Duration(time.Second),
 	}
 
-	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

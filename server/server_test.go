@@ -24,11 +24,12 @@ func TestRun(t *testing.T) {
 	defer subsServer.Close()
 
 	config := &cfg.Config{
-		Host:      "localhost",
-		Port:      43210,
-		Timeout:   timeout,
-		UserAgent: "TestUserAgent",
-		Retries:   3,
+		Host:          "localhost",
+		Port:          43210,
+		Timeout:       timeout,
+		UserAgent:     "TestUserAgent",
+		Retries:       3,
+		MaxConcurrent: 10,
 		Groups: []cfg.Group{
 			{
 				Name:     "test1",

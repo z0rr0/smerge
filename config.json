@@ -5,6 +5,7 @@
   "timeout": "10s",
   "docker_volume": "/data",
   "retries": 3,
+  "max_concurrent": 1000,
   "debug": true,
   "groups": [
     {

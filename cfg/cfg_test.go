@@ -19,6 +19,7 @@ const configContent = `
   "workers": 1,
   "user_agent": "SMerge/1.0",
   "retries": 3,
+  "max_concurrent": 1,
   "debug": true,
   "groups": [
     {
@@ -391,36 +392,50 @@ func TestConfigValidate(t *testing.T) {
 		},
 		{
 			name:   "invalid timeout",
-			config: Config{Host: "localhost", Port: 43210, UserAgent: userAgent, Retries: 3},
+			config: Config{Host: "localhost", Port: 43210, UserAgent: userAgent, Retries: 3, MaxConcurrent: 1},
 			err:    ErrRequiredField,
 			errMsg: "timeout is empty",
 		},
 		{
 			name:   "invalid user agent",
-			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, Retries: 3},
+			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, Retries: 3, MaxConcurrent: 1},
 			err:    ErrRequiredField,
 			errMsg: "user agent is empty",
 		},
 		{
 			name:   "no retries",
-			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent},
+			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent, MaxConcurrent: 1},
 			err:    ErrRequiredField,
 			errMsg: "retries is empty",
 		},
 		{
-			name:   "no groups",
+			name:   "invalid max concurrent",
 			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent, Retries: 3},
+			err:    ErrRequiredField,
+			errMsg: "max concurrent should be at least 1",
+		},
+		{
+			name: "no groups",
+			config: Config{
+				Host:          "localhost",
+				Port:          43210,
+				Timeout:       timeout,
+				UserAgent:     userAgent,
+				Retries:       3,
+				MaxConcurrent: 1,
+			},
 			err:    ErrRequiredField,
 			errMsg: "no groups defined",
 		},
 		{
 			name: "invalid group",
 			config: Config{
-				Host:      "localhost",
-				Port:      43210,
-				Timeout:   timeout,
-				UserAgent: userAgent,
-				Retries:   3,
+				Host:          "localhost",
+				Port:          43210,
+				Timeout:       timeout,
+				UserAgent:     userAgent,
+				Retries:       3,
+				MaxConcurrent: 1,
 				Groups: []Group{
 					{Period: Duration(time.Hour)},
 				},
@@ -431,11 +446,12 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "duplicate group",
 			config: Config{
-				Host:      "localhost",
-				Port:      43210,
-				Timeout:   timeout,
-				UserAgent: userAgent,
-				Retries:   3,
+				Host:          "localhost",
+				Port:          43210,
+				Timeout:       timeout,
+				UserAgent:     userAgent,
+				Retries:       3,
+				MaxConcurrent: 1,
 				Groups: []Group{
 					{
 						Name:     "group1",
@@ -461,11 +477,12 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "duplicate endpoint",
 			config: Config{
-				Host:      "localhost",
-				Port:      43210,
-				Timeout:   timeout,
-				UserAgent: userAgent,
-				Retries:   3,
+				Host:          "localhost",
+				Port:          43210,
+				Timeout:       timeout,
+				UserAgent:     userAgent,
+				Retries:       3,
+				MaxConcurrent: 1,
 				Groups: []Group{
 					{
 						Name:     "group1",
@@ -491,11 +508,12 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "valid",
 			config: Config{
-				Host:      "localhost",
-				Port:      43210,
-				Timeout:   timeout,
-				UserAgent: userAgent,
-				Retries:   3,
+				Host:          "localhost",
+				Port:          43210,
+				Timeout:       timeout,
+				UserAgent:     userAgent,
+				Retries:       3,
+				MaxConcurrent: 1,
 				Groups: []Group{
 					{
 						Name:     "group1",

@@ -50,6 +50,7 @@ type Crawler struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	wg         sync.WaitGroup
+	semaphore  chan struct{} // to limit the number of concurrent goroutines for fetchSubscription
 }
 
 type fetchResult struct {
@@ -59,7 +60,7 @@ type fetchResult struct {
 }
 
 // New creates a new crawler instance.
-func New(groups []cfg.Group, userAgent string, retries uint8) *Crawler {
+func New(groups []cfg.Group, userAgent string, retries uint8, maxConcurrent int) *Crawler {
 	const (
 		maxConnectionsPerHost = 100
 		maxIdleConnections    = 1000
@@ -102,6 +103,7 @@ func New(groups []cfg.Group, userAgent string, retries uint8) *Crawler {
 		client:     client,
 		ctx:        ctx,
 		cancelFunc: cancel,
+		semaphore:  make(chan struct{}, maxConcurrent),
 	}
 }
 
@@ -140,6 +142,7 @@ func (c *Crawler) Run() {
 func (c *Crawler) Shutdown() {
 	c.cancelFunc()
 	c.wg.Wait()
+	close(c.semaphore)
 }
 
 // needDecode checks if the group data needs to be decoded.
@@ -185,38 +188,43 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 	const avgSubURLs = 10
 	var (
 		start            = time.Now()
-		result           = make(chan fetchResult, 1)
+		subResult        = make(chan fetchResult, 1) // to collect results from subscriptions
+		ready            = make(chan struct{})       // to signal that all subscriptions are fetched
 		subscriptionsLen = len(group.Subscriptions)
 		avgURLsLen       = subscriptionsLen * avgSubURLs
 	)
-	defer close(result)
+	defer close(subResult)
 	slog.Info("fetchGroup", "group", group.Name, "subscriptions", subscriptionsLen)
 
+	urls := make([]string, 0, avgURLsLen)
+	go func() {
+		for range subscriptionsLen {
+			if res := <-subResult; res.error != nil {
+				slog.Error("fetchError", "group", group.Name, "subscription", res.subscription, "error", res.error)
+			} else {
+				urls = append(urls, res.urls...)
+			}
+		}
+		close(ready)
+	}()
+
 	for i := range group.Subscriptions {
-		go c.fetchSubscription(group.Name, &group.Subscriptions[i], result)
+		c.semaphore <- struct{}{} // to limit total number of goroutines
+
+		go func(name string, sub *cfg.Subscription) {
+			c.fetchSubscription(name, sub, subResult)
+			<-c.semaphore
+		}(group.Name, &group.Subscriptions[i])
 	}
 
-	urls := make([]string, 0, avgURLsLen)
-	for range subscriptionsLen {
-		if res := <-result; res.error != nil {
-			slog.Error("fetchError", "group", group.Name, "subscription", res.subscription, "error", res.error)
-		} else {
-			urls = append(urls, res.urls...)
-		}
-	}
-	groupResult := prepareGroupResult(urls, group.Encoded)
+	<-ready
+	result := prepareGroupResult(urls, group.Encoded)
 
 	c.Lock()
-	c.result[group.Name] = groupResult
+	c.result[group.Name] = result
 	c.Unlock()
 
-	slog.Info(
-		"fetched",
-		"group", group.Name,
-		"urls", len(urls),
-		"bytes", len(groupResult),
-		"duration", time.Since(start),
-	)
+	slog.Info("fetched", "group", group.Name, "urls", len(urls), "bytes", len(result), "duration", time.Since(start))
 }
 
 func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {

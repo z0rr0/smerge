@@ -246,41 +246,46 @@ func (g *Group) MaxSubscriptionTimeout() time.Duration {
 
 // Config is a main configuration structure.
 type Config struct {
-	Host         string   `json:"host"`
-	Port         uint16   `json:"port"`
-	UserAgent    string   `json:"user_agent"`
-	Timeout      Duration `json:"timeout"`
-	DockerVolume string   `json:"docker_volume"`
-	Retries      uint8    `json:"retries"`
-	Debug        bool     `json:"debug"`
-	Groups       []Group  `json:"groups"`
+	Host          string   `json:"host"`
+	Port          uint16   `json:"port"`
+	UserAgent     string   `json:"user_agent"`
+	Timeout       Duration `json:"timeout"`
+	DockerVolume  string   `json:"docker_volume"`
+	Retries       uint8    `json:"retries"`
+	MaxConcurrent int      `json:"max_concurrent"`
+	Debug         bool     `json:"debug"`
+	Groups        []Group  `json:"groups"`
 }
 
 // Validate checks the configuration for correctness.
 func (c *Config) Validate() error {
 	if c.Host == "" {
-		return errors.Join(ErrRequiredField, fmt.Errorf("host is empty"))
+		return errors.Join(ErrRequiredField, errors.New("host is empty"))
 	}
 
 	if c.Port == 0 {
-		return errors.Join(ErrRequiredField, fmt.Errorf("port is empty"))
+		return errors.Join(ErrRequiredField, errors.New("port is empty"))
 	}
 
 	if c.Timeout == 0 {
-		return errors.Join(ErrRequiredField, fmt.Errorf("timeout is empty"))
+		return errors.Join(ErrRequiredField, errors.New("timeout is empty"))
 	}
 
 	if c.UserAgent == "" {
-		return errors.Join(ErrRequiredField, fmt.Errorf("user agent is empty"))
+		return errors.Join(ErrRequiredField, errors.New("user agent is empty"))
 	}
 
 	if c.Retries == 0 {
-		return errors.Join(ErrRequiredField, fmt.Errorf("retries is empty"))
+		return errors.Join(ErrRequiredField, errors.New("retries is empty"))
+	}
+
+	if c.MaxConcurrent < 1 {
+		return errors.Join(ErrRequiredField, errors.New("max concurrent should be at least 1"))
 	}
 
 	n := len(c.Groups)
 	if n == 0 {
-		return errors.Join(ErrRequiredField, fmt.Errorf("no groups defined"))
+		return errors.Join(ErrRequiredField, errors.New("no groups defined"))
 	}
 
 	endpoints := make(map[string]struct{}, n)

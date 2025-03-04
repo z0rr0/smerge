@@ -8,6 +8,7 @@ services:
     volumes:
       - ./data:/data:ro
     restart: unless-stopped
+    stop_grace_period: 10s
     logging:
       options:
         max-size: "5m"
@@ -15,4 +16,4 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64m
+          memory: 32m

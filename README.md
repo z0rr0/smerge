@@ -11,46 +11,8 @@ It can decode and encode data in base64 format and supports groups update period
 
 ## Configuration
 
-Simple JSON configuration file with groups and subscriptions.
-Example in [config.json](https://github.com/z0rr0/smerge/blob/main/config.json):
-
-```json
-{
-  "host": "localhost",
-  "port": 43210,
-  "user_agent": "SMerge/1.0",
-  "timeout": "10s",
-  "docker_volume": "/data",
-  "retries": 3,
-  "debug": true,
-  "groups": [
-    {
-      "name": "group1",
-      "endpoint": "/group1",
-      "encoded": true,
-      "period": "1h15m",
-      "subscriptions": [
-        {
-          "name": "subscription1",
-          "url": "http://localhost:43211/subscription1",
-          "encoded": false,
-          "has_prefixes": ["ss://", "vless://"],
-          "timeout": "10s"
-        },
-        {
-          "name": "subscription2",
-          "url": "http://localhost:43212/subscription2",
-          "encoded": true,
-          "timeout": "10s"
-        }
-      ]
-    }
-  ]
-}
-
-```
-
-`Encoded` is a flag what means that subscription data is encoded in base64.
+An example of JSON configuration file can be found in
+[config.json](https://github.com/z0rr0/smerge/blob/main/config.json).
 
 ## Build
 
@@ -82,8 +44,8 @@ ok      github.com/z0rr0/smerge/server  (cached)        coverage: 96.6% of state
 Usage of ./smerge:
   -config string
         configuration file (default "config.json")
-  -debug
-        debug mode
+  -dev
+        development mode
   -version
         show version
 ```

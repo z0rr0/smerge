@@ -205,7 +205,7 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 				urls = append(urls, res.urls...)
 			}
 		}
-		close(ready)
+		close(ready) // all subscriptions are fetched
 	}()
 
 	for i := range group.Subscriptions {

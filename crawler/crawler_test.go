@@ -162,8 +162,8 @@ func TestCrawler_Get(t *testing.T) {
 				if !tc.errExpected {
 					t.Errorf("unexpected error: %v", err)
 				} else {
-					if !errors.Is(err, ErrDecodeGroup) {
-						t.Errorf("expected ErrDecodeGroup, got: %v", err)
+					if !errors.Is(err, ErrGroupDecode) {
+						t.Errorf("expected ErrGroupDecode, got: %v", err)
 					}
 				}
 				return

@@ -27,8 +27,8 @@ Test coverage:
 make test
 ...
 ok      github.com/z0rr0/smerge         (cached)        coverage: 56.7% of statements
-ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 93.9% of statements
-ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 94.7% of statements
+ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 92.9% of statements
+ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 91.4% of statements
 ok      github.com/z0rr0/smerge/server  (cached)        coverage: 96.6% of statements
 ```
 

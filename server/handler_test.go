@@ -22,7 +22,7 @@ func (m *mockCrawler) Get(_ string, _ bool, _ bool) ([]byte, error) {
 type mockCrawlerError struct{}
 
 func (m *mockCrawlerError) Get(_ string, _ bool, _ bool) ([]byte, error) {
-	return nil, crawler.ErrDecodeGroup
+	return nil, crawler.ErrGroupDecode
 }
 
 type writerError struct {

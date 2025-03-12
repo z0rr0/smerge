@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,8 +30,11 @@ var (
 		},
 	}
 
-	// ErrDecodeGroup is a public error for decode error.
-	ErrDecodeGroup = fmt.Errorf("decode error")
+	// ErrGroupDecode is a public error for decode error.
+	ErrGroupDecode = fmt.Errorf("decode error")
+
+	// ErrNotFoundGroup is a public error for group not found.
+	ErrNotFoundGroup = fmt.Errorf("group not found")
 )
 
 // Getter is an interface for getting data by group name.
@@ -158,26 +162,27 @@ func (c *Crawler) needDecode(groupName string, decode bool, resultSize int) bool
 
 // Get returns the group data.
 func (c *Crawler) Get(groupName string, force bool, decode bool) ([]byte, error) {
+	group, ok := c.groups[groupName]
+	if !ok {
+		return nil, errors.Join(ErrNotFoundGroup, fmt.Errorf("group name %q", groupName))
+	}
+
 	if force {
-		c.fetchGroup(c.groups[groupName])
+		c.fetchGroup(group)
 	}
 
 	c.RLock()
-	groupResult := c.result[groupName]
-	resultSize := len(groupResult)
-	decode = c.needDecode(groupName, decode, resultSize)
+	groupResult, ok := c.result[groupName]
 	c.RUnlock()
 
-	if decode {
-		dst := make([]byte, base64.StdEncoding.DecodedLen(resultSize))
+	if !ok {
+		return nil, errors.Join(ErrNotFoundGroup, errors.New("no group result"))
+	}
 
-		if n, err := base64.StdEncoding.Decode(dst, groupResult); err != nil {
-			slog.Error("decode error", "group", groupName, "error", err)
-			return nil, ErrDecodeGroup
-		} else {
-			slog.Debug("decoded", "group", groupName, "size", n)
-			groupResult = dst[:n]
-		}
+	resultSize := len(groupResult)
+
+	if c.needDecode(groupName, decode, resultSize) {
+		return decodeGroup(groupResult, resultSize, groupName)
 	}
 
 	return groupResult, nil
@@ -212,8 +217,14 @@ func (c *Crawler) fetchGroup(group *cfg.Group) {
 		c.semaphore <- struct{}{} // to limit total number of goroutines
 
 		go func(name string, sub *cfg.Subscription) {
+			defer func() {
+				<-c.semaphore
+				if r := recover(); r != nil {
+					slog.Error("fetch subscription panic", "group", name, "subscription", sub.Name, "recover", r)
+					subResult <- fetchResult{subscription: sub.Name, error: fmt.Errorf("fetch sub panic: %v", r)}
+				}
+			}()
 			c.fetchSubscription(name, sub, subResult)
-			<-c.semaphore
 		}(group.Name, &group.Subscriptions[i])
 	}
 
@@ -266,7 +277,14 @@ func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscript
 		// to maintain a consistent signature with fetchURLSubscription.
 		return fd, http.StatusOK, nil
 	case <-ctx.Done():
-		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, c.ctx.Err())
+		err = c.ctx.Err()
+
+		// if we return error, the file will not be closed, do it here obviously
+		if closeErr := fd.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+
+		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, err)
 	}
 }
 
@@ -365,6 +383,10 @@ func readSubscription(r io.Reader, encoded bool) ([]string, int64, error) {
 func prepareGroupResult(urls []string, encoded bool) []byte {
 	const lineSep = "\n"
 
+	if len(urls) == 0 {
+		return nil
+	}
+
 	sort.Strings(urls)
 	groupResult := []byte(strings.Join(urls, lineSep))
 
@@ -375,4 +397,17 @@ func prepareGroupResult(urls []string, encoded bool) []byte {
 	}
 
 	return groupResult
+}
+
+func decodeGroup(groupResult []byte, resultSize int, groupName string) ([]byte, error) {
+	dst := make([]byte, base64.StdEncoding.DecodedLen(resultSize))
+	n, err := base64.StdEncoding.Decode(dst, groupResult)
+
+	if err != nil {
+		slog.Error("decode error", "group", groupName, "error", err)
+		return nil, ErrGroupDecode
+	}
+
+	slog.Debug("decoded", "group", groupName, "size", n)
+	return dst[:n], nil
 }

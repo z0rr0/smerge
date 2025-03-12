@@ -72,7 +72,10 @@ type Prefixes []string
 
 // LogValue returns a slog.Value to implement slog.LogValuer interface.
 func (prefixes Prefixes) LogValue() slog.Value {
-	var count = len(prefixes)
+	var (
+		escaped string
+		count   = len(prefixes)
+	)
 
 	if count == 0 {
 		return slog.StringValue("[]")
@@ -82,11 +85,13 @@ func (prefixes Prefixes) LogValue() slog.Value {
 	b.WriteString("[")
 
 	for i := range count - 1 {
-		b.WriteString(fmt.Sprintf("'%s'", prefixes[i]))
+		escaped = strings.ReplaceAll(prefixes[i], "'", "\\'")
+		b.WriteString(fmt.Sprintf("'%s'", escaped))
 		b.WriteString(", ")
 	}
 
-	b.WriteString(fmt.Sprintf("'%s'", prefixes[count-1]))
+	escaped = strings.ReplaceAll(prefixes[count-1], "'", "\\'")
+	b.WriteString(fmt.Sprintf("'%s'", escaped))
 	b.WriteString("]")
 
 	return slog.StringValue(b.String())
@@ -252,7 +257,7 @@ type Config struct {
 	Timeout       Duration `json:"timeout"`
 	DockerVolume  string   `json:"docker_volume"`
 	Retries       uint8    `json:"retries"`
-	MaxConcurrent int      `json:"max_concurrent"`
+	MaxConcurrent uint32   `json:"max_concurrent"`
 	Debug         bool     `json:"debug"`
 	Groups        []Group  `json:"groups"`
 }
@@ -385,21 +390,32 @@ func validateFilePath(dockerVolume, fileName string) (string, error) {
 		return "", fmt.Errorf("file %q has relative path", cleanPath)
 	}
 
-	// check cleanPath exists and it's a regular file
-	fileInfo, err := os.Stat(cleanPath)
-	if err != nil {
-		return "", fmt.Errorf("get file %q info: %w", cleanPath, err)
-	}
-
-	fileMode := fileInfo.Mode()
-	if !fileMode.IsRegular() {
-		return "", fmt.Errorf("file %q is not a regular file, mode=%v", cleanPath, fileMode)
-	}
-
 	tmpDir := os.TempDir()
 	if !(strings.HasPrefix(cleanPath, dockerVolume) || strings.HasPrefix(cleanPath, tmpDir)) {
 		return "", fmt.Errorf("file %q has invalid path", cleanPath)
 	}
 
-	return cleanPath, nil
+	// catch symlinks paths
+	realPath, err := filepath.EvalSymlinks(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("resolving symlinks for %q: %w", cleanPath, err)
+	}
+
+	// re-check realPath
+	if !(strings.HasPrefix(realPath, dockerVolume) || strings.HasPrefix(realPath, tmpDir)) {
+		return "", fmt.Errorf("file %q resolves to a path outside of allowed directories", cleanPath)
+	}
+
+	// check realPath exists and it's a regular file
+	fileInfo, err := os.Stat(realPath)
+	if err != nil {
+		return "", fmt.Errorf("get file %q info: %w", realPath, err)
+	}
+
+	fileMode := fileInfo.Mode()
+	if !fileMode.IsRegular() {
+		return "", fmt.Errorf("file %q is not a regular file, mode=%v", realPath, fileMode)
+	}
+
+	return realPath, nil
 }

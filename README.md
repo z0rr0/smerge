@@ -86,7 +86,7 @@ An example of JSON configuration file can be found in
 - `timeout` (Duration): Global timeout for requests
 - `docker_volume` (string, optional): Docker volume path for local subscriptions
 - `retries` (uint8): Number of retries for failed requests
-- `max_concurrent` (int, min: 1): Maximum number of concurrent subscription goroutines
+- `max_concurrent` (uint32, min: 1): Maximum number of concurrent subscription goroutines
 - `debug` (bool): Enable debug mode
 - `groups` ([]Group): Array of subscription groups
 

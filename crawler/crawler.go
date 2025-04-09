@@ -152,7 +152,7 @@ func (c *Crawler) Shutdown() {
 // needDecode checks if the group data needs to be decoded.
 // A caller should hold the read lock.
 func (c *Crawler) needDecode(groupName string, decode bool, resultSize int) bool {
-	if !(decode && resultSize != 0) {
+	if !decode || resultSize == 0 {
 		return false
 	}
 

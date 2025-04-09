@@ -286,6 +286,7 @@ func TestNewRetryClient(t *testing.T) {
 
 			if client == nil {
 				t.Fatal("NewRetryClient() returned nil")
+				return // only for staticcheck
 			}
 
 			if client.Timeout != tc.timeout {
@@ -295,6 +296,7 @@ func TestNewRetryClient(t *testing.T) {
 			rrt, ok := client.Transport.(*RetryRoundTripper)
 			if !ok {
 				t.Fatal("client.Transport is not a *RetryRoundTripper")
+				return // only for staticcheck
 			}
 
 			if rrt.maxRetries != tc.maxRetries {

@@ -5,8 +5,13 @@
   "timeout": "10s",
   "docker_volume": "/data",
   "retries": 3,
-  "max_concurrent": 1000,
   "debug": true,
+  "limiter": {
+    "max_concurrent": 1000,
+    "rate": 1.0,
+    "burst": 5.0,
+    "exclude": ["127.0.0.1"]
+  },
   "groups": [
     {
       "name": "group1",

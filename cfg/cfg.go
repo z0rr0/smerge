@@ -249,17 +249,58 @@ func (g *Group) MaxSubscriptionTimeout() time.Duration {
 	return maxTimeout
 }
 
+// LimitOptions is a rate limiter configuration.
+type LimitOptions struct {
+	MaxConcurrent uint32   `json:"max_concurrent"`
+	Rate          float64  `json:"rate"`
+	Burst         float64  `json:"burst"`
+	Exclude       []string `json:"exclude"`
+	excludeIPs    map[string]struct{}
+}
+
+// IsExcluded checks if the IP is excluded from rate limiting.
+func (l *LimitOptions) IsExcluded(ip string) bool {
+	if l.Exclude == nil {
+		return false
+	}
+
+	_, ok := l.excludeIPs[ip]
+	return ok
+}
+
+// Validate checks the rate limiter options for correctness.
+func (l *LimitOptions) Validate() error {
+	if l.MaxConcurrent < 1 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("max concurrent should be at least 1"))
+	}
+
+	if l.Rate <= 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("rate should be greater than 0"))
+	}
+
+	if l.Burst < 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("burst should be greater than or equal to 0"))
+	}
+
+	l.excludeIPs = make(map[string]struct{}, len(l.Exclude))
+	for _, ip := range l.Exclude {
+		l.excludeIPs[ip] = struct{}{}
+	}
+
+	return nil
+}
+
 // Config is a main configuration structure.
 type Config struct {
-	Host          string   `json:"host"`
-	Port          uint16   `json:"port"`
-	UserAgent     string   `json:"user_agent"`
-	Timeout       Duration `json:"timeout"`
-	DockerVolume  string   `json:"docker_volume"`
-	Retries       uint8    `json:"retries"`
-	MaxConcurrent uint32   `json:"max_concurrent"`
-	Debug         bool     `json:"debug"`
-	Groups        []Group  `json:"groups"`
+	Host         string       `json:"host"`
+	Port         uint16       `json:"port"`
+	UserAgent    string       `json:"user_agent"`
+	Timeout      Duration     `json:"timeout"`
+	DockerVolume string       `json:"docker_volume"`
+	Retries      uint8        `json:"retries"`
+	Limiter      LimitOptions `json:"limiter"`
+	Debug        bool         `json:"debug"`
+	Groups       []Group      `json:"groups"`
 }
 
 // Validate checks the configuration for correctness.
@@ -284,8 +325,8 @@ func (c *Config) Validate() error {
 		return errors.Join(ErrRequiredField, errors.New("retries is empty"))
 	}
 
-	if c.MaxConcurrent < 1 {
-		return errors.Join(ErrRequiredField, errors.New("max concurrent should be at least 1"))
+	if err := c.Limiter.Validate(); err != nil {
+		return err
 	}
 
 	n := len(c.Groups)
@@ -348,7 +389,7 @@ func readConfig(filename string) ([]byte, error) {
 	isTemp := strings.HasPrefix(cleanPath, os.TempDir())
 
 	if filepath.IsAbs(cleanPath) {
-		if !(isTemp || isDocker || isCurrent) {
+		if !isTemp && !isDocker && !isCurrent {
 			return nil, fmt.Errorf("file %q has an absolute path and is not in the allowed directories", cleanPath)
 		}
 	} else {
@@ -391,7 +432,7 @@ func validateFilePath(dockerVolume, fileName string) (string, error) {
 	}
 
 	tmpDir := os.TempDir()
-	if !(strings.HasPrefix(cleanPath, dockerVolume) || strings.HasPrefix(cleanPath, tmpDir)) {
+	if !strings.HasPrefix(cleanPath, dockerVolume) && !strings.HasPrefix(cleanPath, tmpDir) {
 		return "", fmt.Errorf("file %q has invalid path", cleanPath)
 	}
 
@@ -402,7 +443,7 @@ func validateFilePath(dockerVolume, fileName string) (string, error) {
 	}
 
 	// re-check realPath
-	if !(strings.HasPrefix(realPath, dockerVolume) || strings.HasPrefix(realPath, tmpDir)) {
+	if !strings.HasPrefix(realPath, dockerVolume) && !strings.HasPrefix(realPath, tmpDir) {
 		return "", fmt.Errorf("file %q resolves to a path outside of allowed directories", cleanPath)
 	}
 

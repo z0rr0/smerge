@@ -145,7 +145,7 @@ type Subscription struct {
 }
 
 // Validate checks the subscription for correctness.
-func (s *Subscription) Validate(dockerVolume string) error {
+func (s *Subscription) Validate(root string) error {
 	if s.Name == "" {
 		return errors.Join(ErrRequiredField, fmt.Errorf("subscription name is empty"))
 	}
@@ -158,12 +158,13 @@ func (s *Subscription) Validate(dockerVolume string) error {
 		return errors.Join(ErrDenyInterval, fmt.Errorf("timeout is too short, should be at least %v", minTimeout))
 	}
 
-	if s.Local && dockerVolume == "" {
-		return errors.Join(ErrRequiredField, fmt.Errorf("docker volume is empty for local subscription %q", s.Name))
-	}
-
 	if s.Local {
-		fileName, err := validateFilePath(dockerVolume, string(s.Path))
+		if root == "" {
+			return errors.Join(ErrRequiredField, fmt.Errorf("root is empty"))
+		}
+
+		fileName := string(s.Path)
+		err := validateFilePath(root, fileName)
 		if err != nil {
 			return errors.Join(ErrParse, fmt.Errorf("file path is invalid: %w", err))
 		}
@@ -208,7 +209,7 @@ type Group struct {
 }
 
 // Validate checks the group for correctness.
-func (g *Group) Validate(dockerVolume string) error {
+func (g *Group) Validate(root string) error {
 	if g.Name == "" {
 		return errors.Join(ErrRequiredField, fmt.Errorf("group name is empty"))
 	}
@@ -225,7 +226,7 @@ func (g *Group) Validate(dockerVolume string) error {
 	subscriptions := make(map[string]struct{}, n)
 
 	for i, sub := range g.Subscriptions {
-		if err := sub.Validate(dockerVolume); err != nil {
+		if err := sub.Validate(root); err != nil {
 			return err
 		}
 
@@ -292,15 +293,15 @@ func (l *LimitOptions) Validate() error {
 
 // Config is a main configuration structure.
 type Config struct {
-	Host         string       `json:"host"`
-	Port         uint16       `json:"port"`
-	UserAgent    string       `json:"user_agent"`
-	Timeout      Duration     `json:"timeout"`
-	DockerVolume string       `json:"docker_volume"`
-	Retries      uint8        `json:"retries"`
-	Limiter      LimitOptions `json:"limiter"`
-	Debug        bool         `json:"debug"`
-	Groups       []Group      `json:"groups"`
+	Host      string       `json:"host"`
+	Port      uint16       `json:"port"`
+	UserAgent string       `json:"user_agent"`
+	Timeout   Duration     `json:"timeout"`
+	Root      string       `json:"root"`
+	Retries   uint8        `json:"retries"`
+	Limiter   LimitOptions `json:"limiter"`
+	Debug     bool         `json:"debug"`
+	Groups    []Group      `json:"groups"`
 }
 
 // Validate checks the configuration for correctness.
@@ -325,6 +326,10 @@ func (c *Config) Validate() error {
 		return errors.Join(ErrRequiredField, errors.New("retries is empty"))
 	}
 
+	if c.Root == "" {
+		return errors.Join(ErrRequiredField, errors.New("root is empty"))
+	}
+
 	if err := c.Limiter.Validate(); err != nil {
 		return err
 	}
@@ -338,7 +343,7 @@ func (c *Config) Validate() error {
 	names := make(map[string]struct{}, n)
 
 	for i, group := range c.Groups {
-		if err := group.Validate(c.DockerVolume); err != nil {
+		if err := group.Validate(c.Root); err != nil {
 			return err
 		}
 
@@ -420,43 +425,25 @@ func New(filename string) (*Config, error) {
 
 // validateFilePath checks if the file path is valid and safe.
 // It returns the cleaned file path or an error.
-func validateFilePath(dockerVolume, fileName string) (string, error) {
+func validateFilePath(root string, fileName string) error {
 	if fileName == "" {
-		return "", errors.New("file name is empty")
+		return errors.New("file name is empty")
 	}
 
-	cleanPath := filepath.Clean(strings.Trim(fileName, " "))
-
-	if !filepath.IsAbs(cleanPath) {
-		return "", fmt.Errorf("file %q has relative path", cleanPath)
-	}
-
-	tmpDir := os.TempDir()
-	if !strings.HasPrefix(cleanPath, dockerVolume) && !strings.HasPrefix(cleanPath, tmpDir) {
-		return "", fmt.Errorf("file %q has invalid path", cleanPath)
-	}
-
-	// catch symlinks paths
-	realPath, err := filepath.EvalSymlinks(cleanPath)
+	f, err := os.OpenInRoot(root, fileName)
 	if err != nil {
-		return "", fmt.Errorf("resolving symlinks for %q: %w", cleanPath, err)
+		return fmt.Errorf("open file %q: %w", fileName, err)
 	}
 
-	// re-check realPath
-	if !strings.HasPrefix(realPath, dockerVolume) && !strings.HasPrefix(realPath, tmpDir) {
-		return "", fmt.Errorf("file %q resolves to a path outside of allowed directories", cleanPath)
-	}
-
-	// check realPath exists and it's a regular file
-	fileInfo, err := os.Stat(realPath)
+	fileInfo, err := f.Stat()
 	if err != nil {
-		return "", fmt.Errorf("get file %q info: %w", realPath, err)
+		return fmt.Errorf("get file %q info: %w", fileName, err)
 	}
 
 	fileMode := fileInfo.Mode()
 	if !fileMode.IsRegular() {
-		return "", fmt.Errorf("file %q is not a regular file, mode=%v", realPath, fileMode)
+		return fmt.Errorf("file %q is not a regular file, mode=%v", fileName, fileMode)
 	}
 
-	return realPath, nil
+	return nil
 }

@@ -56,7 +56,7 @@ func TestNew(t *testing.T) {
 	for i := range tests {
 		tc := tests[i]
 		t.Run(tc.name, func(t *testing.T) {
-			c := New(tc.groups, userAgentDefault, retriesDefault, maxConcurrentDefault)
+			c := New(tc.groups, userAgentDefault, retriesDefault, maxConcurrentDefault, "")
 
 			if got := len(c.groups); got != tc.want {
 				t.Errorf("New() got = %v, want %v", got, tc.want)
@@ -149,7 +149,7 @@ func TestCrawler_Get(t *testing.T) {
 		tc := tests[i]
 
 		t.Run(tc.name, func(t *testing.T) {
-			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, maxConcurrentDefault, "")
 
 			if tc.forceData != nil {
 				c.Lock()
@@ -290,7 +290,7 @@ func TestCrawler_Run(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dataReceived := make(chan struct{})
 			wg.Add(tc.expectedCalls)
-			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, tc.maxConcurrent)
+			c := New([]cfg.Group{tc.group}, userAgentDefault, retriesDefault, tc.maxConcurrent, "")
 
 			go func() {
 				wg.Wait()
@@ -322,9 +322,10 @@ func TestCrawler_Run(t *testing.T) {
 }
 
 func TestCrawler_fetchSubscription(t *testing.T) {
+	const fileName = "test.txt"
 	var tmpDir = t.TempDir()
 
-	localFile, fileErr := os.Create(filepath.Join(tmpDir, "test.txt"))
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, fileName))
 	if fileErr != nil {
 		t.Fatalf("failed to create test file: %v", fileErr)
 	}
@@ -362,7 +363,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 			name: "local file",
 			subscription: cfg.Subscription{
 				Name:    "localFile",
-				Path:    cfg.SubPath(localFile.Name()),
+				Path:    cfg.SubPath(fileName),
 				Timeout: cfg.Duration(time.Second),
 				Local:   true,
 			},
@@ -424,8 +425,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.handler != nil {
@@ -435,7 +435,7 @@ func TestCrawler_fetchSubscription(t *testing.T) {
 				tc.subscription.Path = cfg.SubPath(server.URL)
 			}
 
-			c := New([]cfg.Group{}, userAgentDefault, retriesDefault, maxConcurrentDefault)
+			c := New([]cfg.Group{}, userAgentDefault, retriesDefault, maxConcurrentDefault, tmpDir)
 			result := make(chan fetchResult)
 
 			go c.fetchSubscription("test-group", &tc.subscription, result)
@@ -486,7 +486,7 @@ func TestCrawler_Shutdown(t *testing.T) {
 		Period: cfg.Duration(50 * time.Millisecond),
 	}
 
-	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault, "")
 	c.Run()
 
 	<-serverResponded
@@ -625,7 +625,7 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		Period: cfg.Duration(time.Second),
 	}
 
-	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault)
+	c := New([]cfg.Group{group}, userAgentDefault, retriesDefault, maxConcurrentDefault, "")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

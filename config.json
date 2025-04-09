@@ -3,7 +3,7 @@
   "port": 43210,
   "user_agent": "SMerge/1.0",
   "timeout": "10s",
-  "docker_volume": "/data",
+  "root": "/data",
   "retries": 3,
   "debug": true,
   "limiter": {

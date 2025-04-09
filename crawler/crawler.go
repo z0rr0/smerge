@@ -54,6 +54,7 @@ type Crawler struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	wg         sync.WaitGroup
+	rootDir    string
 	semaphore  chan struct{} // to limit the number of concurrent goroutines for fetchSubscription
 }
 
@@ -64,7 +65,7 @@ type fetchResult struct {
 }
 
 // New creates a new crawler instance.
-func New(groups []cfg.Group, userAgent string, retries uint8, maxConcurrent int) *Crawler {
+func New(groups []cfg.Group, userAgent string, retries uint8, maxConcurrent int, rootDir string) *Crawler {
 	const (
 		maxConnectionsPerHost = 100
 		maxIdleConnections    = 1000
@@ -107,6 +108,7 @@ func New(groups []cfg.Group, userAgent string, retries uint8, maxConcurrent int)
 		client:     client,
 		ctx:        ctx,
 		cancelFunc: cancel,
+		rootDir:    rootDir,
 		semaphore:  make(chan struct{}, maxConcurrent),
 	}
 }
@@ -264,7 +266,7 @@ func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscript
 	)
 
 	go func() {
-		fd, err = os.Open(fileName) // #nosec G304, file name is already validated during configuration parsing
+		fd, err = os.OpenInRoot(c.rootDir, fileName)
 		close(done)
 	}()
 

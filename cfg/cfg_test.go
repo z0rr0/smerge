@@ -19,6 +19,7 @@ const configContent = `
   "workers": 1,
   "user_agent": "SMerge/1.0",
   "retries": 3,
+  "root": "/data",
   "limiter": {
     "max_concurrent": 10,
     "rate": 1.0,
@@ -90,8 +91,9 @@ func TestNew(t *testing.T) {
 }
 
 func TestSubscriptionValidate(t *testing.T) {
-	tmpDir := os.TempDir()
-	localFile, fileErr := os.Create(filepath.Join(tmpDir, "local.txt"))
+	const fileName = "local.txt"
+	tmpDir := t.TempDir()
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, fileName))
 	if fileErr != nil {
 		t.Fatal(fileErr)
 	}
@@ -101,25 +103,25 @@ func TestSubscriptionValidate(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name      string
-		sub       Subscription
-		dockerDir string
-		err       error  // if nil - no error expected
-		errMsg    string // a part of error message if error expected
+		name    string
+		sub     Subscription
+		rootDir string
+		err     error  // if nil - no error expected
+		errMsg  string // a part of error message if error expected
 	}{
 		{
-			name:      "empty name",
-			sub:       Subscription{Path: "http://localhost:43211/subscription1"},
-			dockerDir: tmpDir,
-			err:       ErrRequiredField,
-			errMsg:    "subscription name is empty",
+			name:    "empty name",
+			sub:     Subscription{Path: "http://localhost:43211/subscription1"},
+			rootDir: tmpDir,
+			err:     ErrRequiredField,
+			errMsg:  "subscription name is empty",
 		},
 		{
-			name:      "empty SubPath",
-			sub:       Subscription{Name: "subscription1"},
-			dockerDir: tmpDir,
-			err:       ErrRequiredField,
-			errMsg:    "subscription path is empty",
+			name:    "empty SubPath",
+			sub:     Subscription{Name: "subscription1"},
+			rootDir: tmpDir,
+			err:     ErrRequiredField,
+			errMsg:  "subscription path is empty",
 		},
 		{
 			name: "too short timeout",
@@ -128,9 +130,9 @@ func TestSubscriptionValidate(t *testing.T) {
 				Path:    "http://localhost:43211/subscription1",
 				Timeout: Duration(1),
 			},
-			dockerDir: tmpDir,
-			err:       ErrDenyInterval,
-			errMsg:    "timeout is too short, should be at least",
+			rootDir: tmpDir,
+			err:     ErrDenyInterval,
+			errMsg:  "timeout is too short, should be at least",
 		},
 		{
 			name: "invalid SubPath",
@@ -139,9 +141,9 @@ func TestSubscriptionValidate(t *testing.T) {
 				Path:    "https://%.com",
 				Timeout: Duration(time.Second),
 			},
-			dockerDir: tmpDir,
-			err:       ErrParse,
-			errMsg:    "URL is invalid",
+			rootDir: tmpDir,
+			err:     ErrParse,
+			errMsg:  "URL is invalid",
 		},
 		{
 			name: "invalid local SubPath",
@@ -151,12 +153,12 @@ func TestSubscriptionValidate(t *testing.T) {
 				Timeout: Duration(time.Second),
 				Local:   true,
 			},
-			dockerDir: tmpDir,
-			err:       ErrParse,
-			errMsg:    "file path is invalid",
+			rootDir: tmpDir,
+			err:     ErrParse,
+			errMsg:  "file path is invalid",
 		},
 		{
-			name: "local path without dockerDir",
+			name: "local path without rootDir",
 			sub: Subscription{
 				Name:    "subscription1",
 				Path:    SubPath(localFile.Name()),
@@ -164,17 +166,17 @@ func TestSubscriptionValidate(t *testing.T) {
 				Local:   true,
 			},
 			err:    ErrRequiredField,
-			errMsg: "docker volume is empty for local subscription",
+			errMsg: "root is empty",
 		},
 		{
 			name: "valid local SubPath",
 			sub: Subscription{
 				Name:    "subscription1",
-				Path:    SubPath(localFile.Name()),
+				Path:    SubPath(fileName),
 				Timeout: Duration(time.Second),
 				Local:   true,
 			},
-			dockerDir: tmpDir,
+			rootDir: tmpDir,
 		},
 		{
 			name: "valid",
@@ -183,15 +185,14 @@ func TestSubscriptionValidate(t *testing.T) {
 				Path:    "http://localhost:43211/subscription1",
 				Timeout: Duration(time.Second),
 			},
-			dockerDir: tmpDir,
+			rootDir: tmpDir,
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.sub.Validate(tc.dockerDir)
+			err := tc.sub.Validate(tc.rootDir)
 			if tc.err == nil {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
@@ -217,10 +218,13 @@ func TestSubscriptionValidate(t *testing.T) {
 }
 
 func TestGroupValidate(t *testing.T) {
-	const sec = Duration(time.Second)
-	var tmpDir = os.TempDir()
+	const (
+		sec      = Duration(time.Second)
+		fileName = "local.txt"
+	)
+	var tmpDir = t.TempDir()
 
-	localFile, fileErr := os.Create(filepath.Join(tmpDir, "local.txt"))
+	localFile, fileErr := os.Create(filepath.Join(tmpDir, fileName))
 	if fileErr != nil {
 		t.Fatal(fileErr)
 	}
@@ -293,7 +297,7 @@ func TestGroupValidate(t *testing.T) {
 					{Name: "subscription2", Path: "http://localhost:43211/sub2", Timeout: sec},
 					{
 						Name:    "subscription3",
-						Path:    SubPath(localFile.Name()),
+						Path:    SubPath(fileName),
 						Timeout: sec,
 						Local:   true,
 					},
@@ -302,8 +306,7 @@ func TestGroupValidate(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.group.Validate(tmpDir)
@@ -362,8 +365,7 @@ func TestGroupMaxSubscriptionTimeout(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			if timeout := tc.group.MaxSubscriptionTimeout(); timeout != tc.expected {
@@ -374,6 +376,7 @@ func TestGroupMaxSubscriptionTimeout(t *testing.T) {
 }
 
 func TestConfigValidate(t *testing.T) {
+	var root = t.TempDir()
 	timeout := Duration(time.Second)
 	userAgent := "test"
 	limiter := LimitOptions{
@@ -419,8 +422,28 @@ func TestConfigValidate(t *testing.T) {
 			errMsg: "retries is empty",
 		},
 		{
-			name:   "invalid max concurrent",
-			config: Config{Host: "localhost", Port: 43210, Timeout: timeout, UserAgent: userAgent, Retries: 3},
+			name: "empty root",
+			config: Config{
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
+				Limiter:   limiter,
+			},
+			err:    ErrRequiredField,
+			errMsg: "root is empty",
+		},
+		{
+			name: "invalid max concurrent",
+			config: Config{
+				Host:      "localhost",
+				Port:      43210,
+				Timeout:   timeout,
+				UserAgent: userAgent,
+				Retries:   3,
+				Root:      root,
+			},
 			err:    ErrRequiredField,
 			errMsg: "max concurrent should be at least 1",
 		},
@@ -432,6 +455,7 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:   timeout,
 				UserAgent: userAgent,
 				Retries:   3,
+				Root:      root,
 				Limiter:   limiter,
 			},
 			err:    ErrRequiredField,
@@ -445,6 +469,7 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:   timeout,
 				UserAgent: userAgent,
 				Retries:   3,
+				Root:      root,
 				Limiter:   limiter,
 				Groups: []Group{
 					{Period: Duration(time.Hour)},
@@ -461,6 +486,7 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:   timeout,
 				UserAgent: userAgent,
 				Retries:   3,
+				Root:      root,
 				Limiter:   limiter,
 				Groups: []Group{
 					{
@@ -492,6 +518,7 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:   timeout,
 				UserAgent: userAgent,
 				Retries:   3,
+				Root:      root,
 				Limiter:   limiter,
 				Groups: []Group{
 					{
@@ -523,6 +550,7 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:   timeout,
 				UserAgent: userAgent,
 				Retries:   3,
+				Root:      root,
 				Limiter:   limiter,
 				Groups: []Group{
 					{
@@ -546,8 +574,7 @@ func TestConfigValidate(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.config.Validate()
@@ -654,8 +681,7 @@ func TestDurationUnmarshalJSON(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			var d = new(Duration)
@@ -714,8 +740,7 @@ func TestDurationMarshalJSON(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			b, err := tc.duration.MarshalJSON()
@@ -754,8 +779,7 @@ func TestPrefixes_LogValue(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			s := tc.prefixes.LogValue()
@@ -804,8 +828,7 @@ func TestPrefixes_Match(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			if result := tc.prefixes.Match(tc.value); result != tc.expected {
@@ -855,8 +878,7 @@ func TestSubscription_Filter(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			if result := tc.sub.Filter(tc.values); !slices.Equal(result, tc.expected) {
@@ -893,8 +915,7 @@ func TestURL_LogValue(t *testing.T) {
 		},
 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			s := tc.url.LogValue()

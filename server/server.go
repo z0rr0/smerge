@@ -22,7 +22,7 @@ func Run(config *cfg.Config, versionInfo string) {
 	)
 
 	slog.Info("starting crawler", "groups", len(config.Groups))
-	cr := crawler.New(config.Groups, config.UserAgent, config.Retries, int(config.Limiter.MaxConcurrent))
+	cr := crawler.New(config.Groups, config.UserAgent, config.Retries, int(config.Limiter.MaxConcurrent), config.Root)
 	cr.Run()
 
 	handler := LoggingMiddleware(

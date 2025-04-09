@@ -10,6 +10,8 @@
     "max_concurrent": 1000,
     "rate": 1.0,
     "burst": 5.0,
+    "interval": "1s",
+    "clean_interval": "3m",
     "exclude": ["127.0.0.1"]
   },
   "groups": [

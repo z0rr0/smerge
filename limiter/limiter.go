@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// Bucket is an interface that defines a method to check if a request is allowed.
+type Bucket interface {
+	Allow() bool
+}
+
+// IgnoreLimitBucket is a special bucket that ignores rate limits.
+type IgnoreLimitBucket struct{}
+
+// Allow always returns true, indicating that requests are always allowed.
+func (b *IgnoreLimitBucket) Allow() bool { return true }
+
 // TokenBucket is a rate limiter that uses the token bucket algorithm.
 type TokenBucket struct {
 	sync.RWMutex
@@ -52,19 +63,23 @@ func (tb *TokenBucket) Allow() bool {
 // IPRateLimiter is a rate limiter that limits requests based on the IP address.
 type IPRateLimiter struct {
 	sync.RWMutex
-	buckets  map[string]*TokenBucket
-	rate     float64
-	burst    float64
-	interval time.Duration
+	buckets           map[string]*TokenBucket
+	ignoreLimitBucket *IgnoreLimitBucket
+	rate              float64
+	burst             float64
+	interval          time.Duration
+	excluded          map[string]struct{}
 }
 
 // NewIPRateLimiter creates a new IPRateLimiter with the specified rate and burst.
-func NewIPRateLimiter(rate, burst float64, interval time.Duration) *IPRateLimiter {
+func NewIPRateLimiter(rate, burst float64, interval time.Duration, excluded map[string]struct{}) *IPRateLimiter {
 	return &IPRateLimiter{
-		buckets:  make(map[string]*TokenBucket),
-		rate:     rate,
-		burst:    burst,
-		interval: interval,
+		buckets:           make(map[string]*TokenBucket),
+		ignoreLimitBucket: &IgnoreLimitBucket{},
+		rate:              rate,
+		burst:             burst,
+		interval:          interval,
+		excluded:          excluded,
 	}
 }
 
@@ -84,7 +99,11 @@ func (irl *IPRateLimiter) getOrCreateBucket(ip string) *TokenBucket {
 }
 
 // GetBucket returns the TokenBucket for the given IP address.
-func (irl *IPRateLimiter) GetBucket(ip string) *TokenBucket {
+func (irl *IPRateLimiter) GetBucket(ip string) Bucket {
+	if _, ok := irl.excluded[ip]; ok {
+		return irl.ignoreLimitBucket
+	}
+
 	irl.RLock()
 	bucket, ok := irl.buckets[ip]
 	irl.RUnlock()
@@ -96,8 +115,8 @@ func (irl *IPRateLimiter) GetBucket(ip string) *TokenBucket {
 	return bucket
 }
 
-// CleanupBuckets removes buckets that have not been used for a specified duration.
-func (irl *IPRateLimiter) CleanupBuckets(cleanupInterval time.Duration) int {
+// cleanupBuckets removes buckets that have not been used for a specified duration.
+func (irl *IPRateLimiter) cleanupBuckets(cleanupInterval time.Duration) int {
 	irl.Lock()
 	defer irl.Unlock()
 
@@ -133,10 +152,11 @@ func (irl *IPRateLimiter) Cleanup(ctx context.Context, cleanupInterval, maxIdleT
 			close(done)
 		}()
 
+		slog.Info("starting rate limit cleanup", "period", maxIdleTime, "interval", cleanupInterval)
 		for {
 			select {
 			case <-ticker.C:
-				count = irl.CleanupBuckets(cleanupInterval)
+				count = irl.cleanupBuckets(cleanupInterval)
 				slog.Debug("cleanup rate limit buckets", "count", count)
 			case <-ctx.Done():
 				slog.Info("stopping cleanup of rate limit buckets")

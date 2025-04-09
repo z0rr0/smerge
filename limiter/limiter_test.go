@@ -89,6 +89,7 @@ func TestIPRateLimiter_GetBucket(t *testing.T) {
 		interval time.Duration
 		ips      []string
 		wantSame []bool // whether the same bucket should be returned for consecutive calls with the same IP
+		excluded map[string]struct{}
 	}{
 		{
 			name:     "Single IP",
@@ -106,15 +107,32 @@ func TestIPRateLimiter_GetBucket(t *testing.T) {
 			ips:      []string{"192.168.1.1", "192.168.1.2", "192.168.1.1", "192.168.1.1"},
 			wantSame: []bool{false, false, true},
 		},
+		{
+			name:     "Multiple IPs with exclusions",
+			rate:     1,
+			burst:    5,
+			interval: time.Second,
+			ips:      []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"},
+			wantSame: []bool{true, false},
+			excluded: map[string]struct{}{"192.168.1.1": {}, "192.168.1.2": {}},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			irl := NewIPRateLimiter(tt.rate, tt.burst, tt.interval)
+			irl := NewIPRateLimiter(tt.rate, tt.burst, tt.interval, tt.excluded)
 			size := len(tt.ips)
-			buckets := make([]*TokenBucket, 0, size)
+			buckets := make([]Bucket, 0, size)
 
 			for _, ip := range tt.ips {
+				bucket := irl.GetBucket(ip)
+
+				if _, ok := tt.excluded[ip]; ok {
+					if _, ok = bucket.(*IgnoreLimitBucket); !ok {
+						t.Errorf("expected IgnoreLimitBucket for excluded IP %s, got %T", ip, bucket)
+					}
+				}
+
 				buckets = append(buckets, irl.GetBucket(ip))
 			}
 
@@ -141,6 +159,7 @@ func TestIPRateLimiter_RateLimiting(t *testing.T) {
 		ips            []string
 		sleepIntervals []time.Duration
 		wantResults    []bool
+		excluded       map[string]struct{}
 	}{
 		{
 			name:           "Single IP within limit",
@@ -178,11 +197,21 @@ func TestIPRateLimiter_RateLimiting(t *testing.T) {
 			sleepIntervals: []time.Duration{0, 0, time.Millisecond * 60},
 			wantResults:    []bool{true, false, true},
 		},
+		{
+			name:           "Excluded IP",
+			rate:           1,
+			burst:          1,
+			interval:       time.Second,
+			ips:            []string{"192.168.1.1", "192.168.1.2", "192.168.1.1", "192.168.1.2"},
+			sleepIntervals: []time.Duration{0, 0, 0, 0},
+			wantResults:    []bool{true, true, true, true},
+			excluded:       map[string]struct{}{"192.168.1.1": {}, "192.168.1.2": {}},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			irl := NewIPRateLimiter(tt.rate, tt.burst, tt.interval)
+			irl := NewIPRateLimiter(tt.rate, tt.burst, tt.interval, tt.excluded)
 
 			for i, ip := range tt.ips {
 				if i > 0 && tt.sleepIntervals[i] > 0 {
@@ -255,7 +284,7 @@ func TestIPRateLimiter_CleanupBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			irl := NewIPRateLimiter(10.0, 20.0, tt.interval)
+			irl := NewIPRateLimiter(10.0, 20.0, tt.interval, nil)
 
 			for i, ip := range tt.ips {
 				bucket := irl.GetBucket(ip)
@@ -264,9 +293,9 @@ func TestIPRateLimiter_CleanupBuckets(t *testing.T) {
 				time.Sleep(tt.ipSleepDurations[i])
 			}
 
-			got := irl.CleanupBuckets(tt.cleanupInterval)
+			got := irl.cleanupBuckets(tt.cleanupInterval)
 			if got != tt.wantRemoved {
-				t.Errorf("CleanupBuckets() = %v, want %v", got, tt.wantRemoved)
+				t.Errorf("cleanupBuckets() = %v, want %v", got, tt.wantRemoved)
 			}
 
 			irl.RLock()
@@ -282,7 +311,7 @@ func TestIPRateLimiter_CleanupBuckets(t *testing.T) {
 
 func TestIPRateLimiter_Cleanup(t *testing.T) {
 	interval := time.Millisecond * 500
-	irl := NewIPRateLimiter(10.0, 20.0, interval)
+	irl := NewIPRateLimiter(10.0, 20.0, interval, nil)
 
 	ips := []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"}
 	for _, ip := range ips {

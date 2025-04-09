@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,5 +77,10 @@ func remoteAddress(r *http.Request) string {
 		return ra
 	}
 
-	return r.RemoteAddr
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		slog.Error("failed to parse remote address", "error", err)
+	}
+
+	return host
 }

@@ -29,7 +29,13 @@ func TestRun(t *testing.T) {
 		Timeout:   timeout,
 		UserAgent: "TestUserAgent",
 		Retries:   3,
-		Limiter:   cfg.LimitOptions{MaxConcurrent: 10, Rate: 1.0, Burst: 1.0},
+		Limiter: cfg.LimitOptions{
+			MaxConcurrent: 10,
+			Rate:          10.0,
+			Burst:         20.0,
+			Interval:      cfg.Duration(time.Second),
+			CleanInterval: cfg.Duration(time.Minute),
+		},
 		Groups: []cfg.Group{
 			{
 				Name:     "test1",
@@ -88,8 +94,7 @@ func TestRun(t *testing.T) {
 
 	baseURL := fmt.Sprintf("http://%s", config.Addr())
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			url := baseURL + tc.path
@@ -149,6 +154,13 @@ func TestRunWithBadAddress(t *testing.T) {
 		Port:    12345,
 		Timeout: timeout,
 		Groups:  []cfg.Group{{Name: "test", Period: timeout}},
+		Limiter: cfg.LimitOptions{
+			MaxConcurrent: 10,
+			Rate:          10.0,
+			Burst:         20.0,
+			Interval:      cfg.Duration(time.Second),
+			CleanInterval: cfg.Duration(time.Minute),
+		},
 	}
 
 	done := make(chan struct{})

@@ -11,6 +11,7 @@ import (
 
 	"github.com/z0rr0/smerge/cfg"
 	"github.com/z0rr0/smerge/crawler"
+	"github.com/z0rr0/smerge/limiter"
 )
 
 // healthPaths is a map of health check paths.
@@ -102,7 +103,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// ErrorHandlingMiddleware handles panics and logs the error
+// ErrorHandlingMiddleware handles panics and logs the error.
 func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -114,6 +115,27 @@ func ErrorHandlingMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 		next.ServeHTTP(w, r)
+	})
+}
+
+// RateLimiterMiddleware is a middleware that limits the rate of incoming requests.
+func RateLimiterMiddleware(next http.Handler, ipLimiter *limiter.IPRateLimiter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ipLimiter == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ctx := r.Context()
+		remoteAddr := remoteAddress(r)
+
+		if bucket := ipLimiter.GetBucket(remoteAddr); bucket.Allow() {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		slog.WarnContext(ctx, "rate limit exceeded", "remote_addr", remoteAddr)
+		http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 	})
 }
 

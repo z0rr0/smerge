@@ -255,18 +255,15 @@ type LimitOptions struct {
 	MaxConcurrent uint32   `json:"max_concurrent"`
 	Rate          float64  `json:"rate"`
 	Burst         float64  `json:"burst"`
+	Interval      Duration `json:"interval"`
+	CleanInterval Duration `json:"clean_interval"`
 	Exclude       []string `json:"exclude"`
 	excludeIPs    map[string]struct{}
 }
 
-// IsExcluded checks if the IP is excluded from rate limiting.
-func (l *LimitOptions) IsExcluded(ip string) bool {
-	if l.Exclude == nil {
-		return false
-	}
-
-	_, ok := l.excludeIPs[ip]
-	return ok
+// ExcludedIPS returns a map of excluded IPs.
+func (l *LimitOptions) ExcludedIPS() map[string]struct{} {
+	return l.excludeIPs
 }
 
 // Validate checks the rate limiter options for correctness.

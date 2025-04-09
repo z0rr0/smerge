@@ -126,7 +126,7 @@ func TestRemoteAddress(t *testing.T) {
 			name:       "no header",
 			request:    httptest.NewRequest("GET", "/", nil),
 			remoteAddr: "192.168.1.2:1234",
-			expected:   "192.168.1.2:1234",
+			expected:   "192.168.1.2",
 		},
 		{
 			name:       "empty header",
@@ -134,7 +134,7 @@ func TestRemoteAddress(t *testing.T) {
 			withHeader: true,
 			header:     "",
 			remoteAddr: "192.168.1.2:1234",
-			expected:   "192.168.1.2:1234",
+			expected:   "192.168.1.2",
 		},
 		{
 			name:        "with forward header",
@@ -144,10 +144,23 @@ func TestRemoteAddress(t *testing.T) {
 			remoteAddr:  "192.168.1.2:1234",
 			expected:    "192.168.1.1",
 		},
+		{
+			name:       "IP v6",
+			request:    httptest.NewRequest("GET", "/", nil),
+			remoteAddr: "[2a00:1370:8174:5308:3075:623b:a456:2891]:1234",
+			expected:   "2a00:1370:8174:5308:3075:623b:a456:2891",
+		},
+		{
+			name:        "IP v6 with header",
+			request:     httptest.NewRequest("GET", "/", nil),
+			withForward: true,
+			header:      "2a00:1370:8174:5308:3075:623b:a456:2891",
+			remoteAddr:  "[2a00:1370:8174:5308:3075:623b:a456:2891]:1234",
+			expected:    "2a00:1370:8174:5308:3075:623b:a456:2891",
+		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.request != nil {

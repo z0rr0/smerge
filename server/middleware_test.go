@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/z0rr0/smerge/limiter"
 )
 
 func TestResponseWriter(t *testing.T) {
@@ -40,8 +43,7 @@ func TestResponseWriter(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
@@ -146,8 +148,7 @@ func TestLoggingMiddleware(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			logBuf.Reset()
 
@@ -239,8 +240,7 @@ func TestErrorHandlingMiddleware(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
 			rec := httptest.NewRecorder()
@@ -313,8 +313,7 @@ func TestHealthCheckMiddleware(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			var nextHandlerCalls int
@@ -377,8 +376,7 @@ func TestValidationMiddleware(t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		tc := tests[i]
+	for _, tc := range tests {
 
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.method, "/test", nil)
@@ -389,6 +387,48 @@ func TestValidationMiddleware(t *testing.T) {
 			})
 
 			handler := ValidationMiddleware(nextHandler)
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tc.expectedCode {
+				t.Errorf("got status code %d, want %d", rec.Code, tc.expectedCode)
+			}
+		})
+	}
+}
+
+func TestRateLimiterMiddleware(t *testing.T) {
+	tests := []struct {
+		name         string
+		ipLimiter    *limiter.IPRateLimiter
+		expectedCode int
+	}{
+		{
+			name:         "no limiter",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "with limiter",
+			ipLimiter:    limiter.NewIPRateLimiter(1.0, 2.0, time.Second, nil),
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "rate limit exceeded",
+			ipLimiter:    limiter.NewIPRateLimiter(0.1, 0.2, time.Second, nil),
+			expectedCode: http.StatusTooManyRequests,
+		},
+	}
+
+	for _, tc := range tests {
+
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test", nil)
+			rec := httptest.NewRecorder()
+
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := RateLimiterMiddleware(nextHandler, tc.ipLimiter)
 			handler.ServeHTTP(rec, req)
 
 			if rec.Code != tc.expectedCode {

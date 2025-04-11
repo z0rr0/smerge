@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"syscall"
 	_ "time/tzdata"
 
 	"github.com/z0rr0/smerge/cfg"
@@ -63,7 +64,7 @@ func main() {
 	initLogger(dev, os.Stdout)
 	slog.Info(name, "version", Version, "revision", Revision, "go", GoVersion, "build", BuildDate, "dev", dev)
 
-	server.Run(config, versionInfo)
+	server.Run(config, versionInfo, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
 	slog.Info("stopped")
 }
 

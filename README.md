@@ -27,8 +27,9 @@ Test coverage:
 make test
 ...
 ok      github.com/z0rr0/smerge         (cached)        coverage: 56.7% of statements
-ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 92.9% of statements
+ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 92.1% of statements
 ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 91.4% of statements
+ok      github.com/z0rr0/smerge/limiter (cached)        coverage: 100.0% of statements
 ok      github.com/z0rr0/smerge/server  (cached)        coverage: 96.6% of statements
 ```
 
@@ -84,13 +85,22 @@ An example of JSON configuration file can be found in
 - `port` (uint16): Port for the server
 - `user_agent` (string): User agent string for HTTP requests
 - `timeout` (Duration): Global timeout for requests
-- `docker_volume` (string, optional): Docker volume path for local subscriptions
+- `root` (string, optional): Root directory for local subscriptions
 - `retries` (uint8): Number of retries for failed requests
-- `max_concurrent` (uint32, min: 1): Maximum number of concurrent subscription goroutines
 - `debug` (bool): Enable debug mode
+- `limiter` (LimitOptions): Rate limiting options
 - `groups` ([]Group): Array of subscription groups
 
-### Group Configuration
+### Limits configuration (`LimitOptions`)
+
+- `max_concurrent` (uint32, min: 1): Maximum number of concurrent subscription goroutines
+- `rate` (float64, min: 0): Rate limit for requests (0 = no limit)
+- `burst` (float64, min: 0): Burst size for rate limiting (0 = no rate limit)
+- `interval` (Duration): Interval for rate limiting
+- `clean_interval` (Duration): Interval for cleaning up old rate limiters
+- `exclude` ([]string): Exclude list of IPs for rate limiting
+
+### Group Configuration (`Group`)
 
 - `name` (string): Name of the group (must be unique)
 - `endpoint` (string): HTTP endpoint for the group (must be unique)
@@ -98,7 +108,7 @@ An example of JSON configuration file can be found in
 - `period` (Duration, min: 1s): Refresh period for the group
 - `subscriptions` ([]Subscription): Array of subscriptions for the group
 
-### Subscription Configuration
+### Subscription Configuration (`Subscription`)
 
 - `name` (string): Name of the subscription (must be unique within a group)
 - `url` (string): URL or file path of the subscription

@@ -24,6 +24,8 @@ const configContent = `
     "max_concurrent": 10,
     "rate": 1.0,
     "burst": 2.0,
+	"interval": "10s",
+    "clean_interval": "1m",
     "exclude": ["127.0.0.1"]
   },
   "debug": true,
@@ -383,6 +385,8 @@ func TestConfigValidate(t *testing.T) {
 		MaxConcurrent: 1,
 		Rate:          1.0,
 		Burst:         1.0,
+		Interval:      Duration(time.Second),
+		CleanInterval: Duration(time.Minute),
 	}
 
 	testCases := []struct {

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/z0rr0/smerge/cfg"
@@ -15,21 +14,35 @@ import (
 	"github.com/z0rr0/smerge/limiter"
 )
 
-func Run(config *cfg.Config, versionInfo string) {
+func runLimiter(ctx context.Context, config *cfg.Config) (*limiter.IPRateLimiter, chan struct{}) {
+	const noRate = 0.0
+
+	if config.Limiter.Rate == noRate || config.Limiter.Burst == noRate {
+		slog.Info("IP rate limiting disabled")
+		done := make(chan struct{})
+		close(done)
+		return nil, done
+	}
+
+	interval := config.Limiter.Interval.Timed()
+	excluded := config.Limiter.ExcludedIPS()
+
+	ipLimiter := limiter.NewIPRateLimiter(config.Limiter.Rate, config.Limiter.Burst, interval, excluded)
+	interval = config.Limiter.CleanInterval.Timed()
+
+	return ipLimiter, ipLimiter.Cleanup(ctx, interval, interval)
+}
+
+func Run(config *cfg.Config, versionInfo string, signals ...os.Signal) {
 	var (
 		serverTimeout   = time.Duration(config.Timeout)
 		serverAddr      = config.Addr()
 		groupsEndpoints = config.GroupsEndpoints()
 	)
 
-	interval := config.Limiter.Interval.Timed()
-	excluded := config.Limiter.ExcludedIPS()
-
-	ipLimiter := limiter.NewIPRateLimiter(config.Limiter.Rate, config.Limiter.Burst, interval, excluded)
 	limiterCtx, limiterCancel := context.WithCancel(context.Background())
-
-	interval = config.Limiter.CleanInterval.Timed()
-	limiterDone := ipLimiter.Cleanup(limiterCtx, interval, interval)
+	ipLimiter, limiterDone := runLimiter(limiterCtx, config)
+	activeLimiter := ipLimiter != nil
 
 	slog.Info("starting crawler", "groups", len(config.Groups))
 	cr := crawler.New(config.Groups, config.UserAgent, config.Retries, int(config.Limiter.MaxConcurrent), config.Root)
@@ -60,7 +73,7 @@ func Run(config *cfg.Config, versionInfo string) {
 
 	sigint := make(chan os.Signal, 1)
 	go func() {
-		signal.Notify(sigint, os.Interrupt, os.Signal(syscall.SIGTERM), os.Signal(syscall.SIGQUIT))
+		signal.Notify(sigint, signals...)
 		<-sigint
 
 		slog.Info("shutting down crawler")
@@ -88,5 +101,5 @@ func Run(config *cfg.Config, versionInfo string) {
 
 	limiterCancel()
 	<-limiterDone
-	slog.Info("IP rate limiter stopped")
+	slog.Info("IP rate limiter shutdown complete", "activated", activeLimiter)
 }

@@ -272,8 +272,16 @@ func (l *LimitOptions) Validate() error {
 		return errors.Join(ErrRequiredField, fmt.Errorf("max concurrent should be at least 1"))
 	}
 
-	if l.Rate <= 0 {
+	if l.Rate < 0 {
 		return errors.Join(ErrRequiredField, fmt.Errorf("rate should be greater than 0"))
+	}
+
+	if l.Interval <= 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("interval should be greater than 0"))
+	}
+
+	if l.CleanInterval <= 0 {
+		return errors.Join(ErrRequiredField, fmt.Errorf("clean interval should be greater than 0"))
 	}
 
 	if l.Burst < 0 {

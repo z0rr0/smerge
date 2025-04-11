@@ -185,7 +185,7 @@ func handleGroup(groups map[string]*cfg.Group, cr crawler.Getter) http.HandlerFu
 		groupData, err := cr.Get(group.Name, force, decode)
 
 		if err != nil {
-			slog.ErrorContext(r.Context(), "handle group", "group", group.Name, "error", err)
+			slog.ErrorContext(r.Context(), "handle group", "name", group.Name, "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

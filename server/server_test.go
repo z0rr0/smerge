@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,27 @@ import (
 	"github.com/z0rr0/smerge/cfg"
 )
 
-const timeout = cfg.Duration(time.Millisecond * 10)
+const (
+	timeout   = cfg.Duration(time.Millisecond * 10)
+	startTime = time.Millisecond * 250
+)
+
+var testSignal = os.Signal(syscall.SIGUSR1)
+
+func waitForServerReady(address string, timeout time.Duration) error {
+	const step = 50 * time.Millisecond
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", address, step)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		time.Sleep(step)
+	}
+	return fmt.Errorf("server did not start within %s", timeout)
+}
 
 func TestRun(t *testing.T) {
 	subsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,11 +72,13 @@ func TestRun(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	go func() {
-		Run(config, "test version")
+		Run(config, "test version", testSignal)
 		close(serverDone)
 	}()
+	if err := waitForServerReady(config.Addr(), startTime); err != nil {
+		t.Fatalf("server did not start: %v", err)
+	}
 
-	time.Sleep(100 * time.Millisecond)
 	client := &http.Client{
 		Timeout: time.Second,
 	}
@@ -105,8 +128,8 @@ func TestRun(t *testing.T) {
 			}
 
 			defer func() {
-				if err2 := resp.Body.Close(); err2 != nil {
-					t.Errorf("failed to close response body: %v", err2)
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					t.Errorf("failed to close response body: %v", closeErr)
 				}
 			}()
 
@@ -136,8 +159,80 @@ func TestRun(t *testing.T) {
 		t.Fatalf("failed to find current process: %v", err)
 	}
 
-	if err4 := proc.Signal(syscall.SIGTERM); err4 != nil {
+	if err4 := proc.Signal(testSignal); err4 != nil {
 		t.Fatalf("Failed to send SIGTERM: %v", err4)
+	}
+
+	select {
+	case <-serverDone:
+		// server stopped successfully
+	case <-time.After(5 * time.Second):
+		t.Error("server didn't stop within timeout")
+	}
+}
+
+func TestRunWithoutRateLimit(t *testing.T) {
+	subsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := w.Write([]byte("line1\nline2")); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
+	}))
+	defer subsServer.Close()
+
+	config := &cfg.Config{
+		Host:      "localhost",
+		Port:      43210,
+		Timeout:   timeout,
+		UserAgent: "TestUserAgent",
+		Retries:   3,
+		Limiter:   cfg.LimitOptions{MaxConcurrent: 2},
+		Groups: []cfg.Group{
+			{
+				Name:     "test1",
+				Endpoint: "/test1",
+				Period:   cfg.Duration(time.Hour),
+				Subscriptions: []cfg.Subscription{
+					{Name: "sub1", Path: cfg.SubPath(subsServer.URL), Timeout: timeout},
+				},
+			},
+			{Name: "test2", Endpoint: "/test2", Period: cfg.Duration(time.Second)},
+		},
+	}
+
+	serverDone := make(chan struct{})
+	go func() {
+		Run(config, "test version", testSignal)
+		close(serverDone)
+	}()
+	if err := waitForServerReady(config.Addr(), startTime); err != nil {
+		t.Fatalf("server did not start: %v", err)
+	}
+
+	client := &http.Client{Timeout: time.Second}
+	clientURL := fmt.Sprintf("http://%s/test1/", config.Addr())
+
+	resp, err := client.Get(clientURL)
+	if err != nil {
+		t.Fatalf("failed to make request: %v", err)
+	}
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("failed to close response body: %v", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	proc, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("failed to find current process: %v", err)
+	}
+
+	if err = proc.Signal(testSignal); err != nil {
+		t.Fatalf("Failed to send SIGTERM: %v", err)
 	}
 
 	select {
@@ -165,7 +260,7 @@ func TestRunWithBadAddress(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		Run(config, "test version")
+		Run(config, "test version", testSignal)
 		close(done)
 	}()
 

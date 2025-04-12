@@ -157,7 +157,7 @@ func (irl *IPRateLimiter) Cleanup(ctx context.Context, cleanupInterval, maxIdleT
 			select {
 			case <-ticker.C:
 				count = irl.cleanupBuckets(cleanupInterval)
-				slog.Debug("cleanup rate limit buckets", "count", count)
+				slog.Info("cleanup rate limit buckets", "count", count)
 			case <-ctx.Done():
 				slog.Info("stopping cleanup of rate limit buckets")
 				return

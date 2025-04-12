@@ -129,13 +129,12 @@ func RateLimiterMiddleware(next http.Handler, ipLimiter *limiter.IPRateLimiter) 
 		ctx := r.Context()
 		remoteAddr := remoteAddress(r)
 
-		if bucket := ipLimiter.GetBucket(remoteAddr); bucket.Allow() {
-			next.ServeHTTP(w, r)
+		if bucket := ipLimiter.GetBucket(remoteAddr); !bucket.Allow() {
+			slog.WarnContext(ctx, "rate limit exceeded", "remote_addr", remoteAddr)
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
-
-		slog.WarnContext(ctx, "rate limit exceeded", "remote_addr", remoteAddr)
-		http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+		next.ServeHTTP(w, r)
 	})
 }
 

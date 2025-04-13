@@ -236,8 +236,8 @@ func TestIPRateLimiter_CleanupBuckets(t *testing.T) {
 		ipSleepDurations []time.Duration
 		interval         time.Duration
 		cleanupInterval  time.Duration
-		wantRemoved      int
-		wantRemaining    int
+		wantRemoved      uint64
+		wantRemaining    uint64
 	}{
 		{
 			name:            "No buckets to clean",
@@ -299,7 +299,7 @@ func TestIPRateLimiter_CleanupBuckets(t *testing.T) {
 			}
 
 			irl.RLock()
-			got = len(irl.buckets)
+			got = uint64(len(irl.buckets))
 			irl.RUnlock()
 
 			if got != tt.wantRemaining {

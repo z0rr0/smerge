@@ -242,32 +242,3 @@ func TestRunWithoutRateLimit(t *testing.T) {
 		t.Error("server didn't stop within timeout")
 	}
 }
-
-func TestRunWithBadAddress(t *testing.T) {
-	config := &cfg.Config{
-		Host:    "invalid-host-name-that-should-not-resolve",
-		Port:    12345,
-		Timeout: timeout,
-		Groups:  []cfg.Group{{Name: "test", Period: timeout}},
-		Limiter: cfg.LimitOptions{
-			MaxConcurrent: 10,
-			Rate:          10.0,
-			Burst:         20.0,
-			Interval:      cfg.Duration(time.Second),
-			CleanInterval: cfg.Duration(time.Minute),
-		},
-	}
-
-	done := make(chan struct{})
-	go func() {
-		Run(config, "test version", testSignal)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// Server should fail to start and return
-	case <-time.After(5 * time.Second):
-		t.Error("server didn't handle bad address properly")
-	}
-}

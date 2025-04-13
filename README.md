@@ -30,7 +30,7 @@ ok      github.com/z0rr0/smerge         (cached)        coverage: 56.7% of state
 ok      github.com/z0rr0/smerge/cfg     (cached)        coverage: 92.1% of statements
 ok      github.com/z0rr0/smerge/crawler (cached)        coverage: 91.4% of statements
 ok      github.com/z0rr0/smerge/limiter (cached)        coverage: 100.0% of statements
-ok      github.com/z0rr0/smerge/server  (cached)        coverage: 96.6% of statements
+ok      github.com/z0rr0/smerge/server  (cached)        coverage: 95.2% of statements
 ```
 
 ## Run

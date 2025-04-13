@@ -116,25 +116,26 @@ func (irl *IPRateLimiter) GetBucket(ip string) Bucket {
 }
 
 // cleanupBuckets removes buckets that have not been used for a specified duration.
-func (irl *IPRateLimiter) cleanupBuckets(cleanupInterval time.Duration) int {
+func (irl *IPRateLimiter) cleanupBuckets(cleanupInterval time.Duration) uint64 {
+	var (
+		count uint64
+		now   = time.Now()
+	)
 	irl.Lock()
-	defer irl.Unlock()
-
-	now := time.Now()
-	removedCount := 0
 
 	for ip, bucket := range irl.buckets {
 		bucket.RLock()
 		lastUsed := bucket.lastRefillTime
-		bucket.RUnlock()
 
 		if now.Sub(lastUsed) > cleanupInterval {
 			delete(irl.buckets, ip)
-			removedCount++
+			count++
 		}
+		bucket.RUnlock()
 	}
 
-	return removedCount
+	irl.Unlock()
+	return count
 }
 
 // Cleanup starts a goroutine that periodically cleans up buckets that have not been used for a specified duration.
@@ -143,7 +144,7 @@ func (irl *IPRateLimiter) Cleanup(ctx context.Context, cleanupInterval, maxIdleT
 	var (
 		ticker = time.NewTicker(maxIdleTime)
 		done   = make(chan struct{})
-		count  int
+		count  uint64
 	)
 
 	go func() {

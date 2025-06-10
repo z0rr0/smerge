@@ -279,11 +279,14 @@ func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscript
 		// to maintain a consistent signature with fetchURLSubscription.
 		return fd, http.StatusOK, nil
 	case <-ctx.Done():
-		err = c.ctx.Err()
+		// use the derived context error to provide accurate reason
+		err = ctx.Err()
 
 		// if we return error, the file will not be closed, do it here obviously
-		if closeErr := fd.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
+		if fd != nil {
+			if closeErr := fd.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
 		}
 
 		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, err)

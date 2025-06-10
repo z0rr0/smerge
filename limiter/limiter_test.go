@@ -141,7 +141,7 @@ func TestIPRateLimiter_GetBucket(t *testing.T) {
 
 				if sameBucket != tt.wantSame[i-1] {
 					t.Errorf(
-						"fequest %d and %d: got same bucket = %v, want same = %v for IPs %s and %s",
+						"request %d and %d: got same bucket = %v, want same = %v for IPs %s and %s",
 						i, i-1, sameBucket, tt.wantSame[i-1], tt.ips[i-1], tt.ips[i],
 					)
 				}

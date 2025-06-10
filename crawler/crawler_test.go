@@ -632,3 +632,74 @@ func BenchmarkCrawler_fetchGroup(b *testing.B) {
 		c.fetchGroup(&group)
 	}
 }
+
+func TestDecodeGroup(t *testing.T) {
+	tests := []struct {
+		name        string
+		groupResult []byte
+		resultSize  int
+		groupName   string
+		want        []byte
+		wantErr     bool
+		expectedErr error
+	}{
+		{
+			name:        "valid base64 decode",
+			groupResult: []byte(base64.StdEncoding.EncodeToString([]byte("line1\nline2"))),
+			resultSize:  len(base64.StdEncoding.EncodeToString([]byte("line1\nline2"))),
+			groupName:   "test-group",
+			want:        []byte("line1\nline2"),
+		},
+		{
+			name:        "invalid base64 decode",
+			groupResult: []byte("invalid-base64!@#$"),
+			resultSize:  len("invalid-base64!@#$"),
+			groupName:   "test-group",
+			want:        nil,
+			wantErr:     true,
+			expectedErr: ErrGroupDecode,
+		},
+		{
+			name:        "empty input",
+			groupResult: []byte{},
+			resultSize:  0,
+			groupName:   "test-group",
+			want:        []byte{},
+		},
+		{
+			name:        "valid multi-line decode",
+			groupResult: []byte(base64.StdEncoding.EncodeToString([]byte("https://example1.com\nhttps://example2.com\nhttps://example3.com"))),
+			resultSize:  len(base64.StdEncoding.EncodeToString([]byte("https://example1.com\nhttps://example2.com\nhttps://example3.com"))),
+			groupName:   "multi-group",
+			want:        []byte("https://example1.com\nhttps://example2.com\nhttps://example3.com"),
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := decodeGroup(tc.groupResult, tc.resultSize, tc.groupName)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Error("expected error but got none")
+					return
+				}
+				if tc.expectedErr != nil && !errors.Is(err, tc.expectedErr) {
+					t.Errorf("expected error %v, got %v", tc.expectedErr, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("decodeGroup() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

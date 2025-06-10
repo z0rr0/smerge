@@ -93,7 +93,18 @@ func NewRetryClient(maxRetries uint8, rt http.RoundTripper, timeout time.Duratio
 
 // cloneRequest creates a copy of the request.
 func cloneRequest(req *http.Request) *http.Request {
-	return req.Clone(req.Context())
+	cloned := req.Clone(req.Context())
+
+	if req.Body != nil && req.GetBody != nil {
+		freshBody, err := req.GetBody()
+		if err != nil {
+			slog.Warn("failed to get request body", "error", err)
+		} else {
+			cloned.Body = freshBody
+		}
+	}
+
+	return cloned
 }
 
 // calcDelay returns delay for the next retry attempt.

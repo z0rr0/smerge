@@ -21,7 +21,7 @@ import (
 var healthPaths = map[string]struct{}{"/ok": {}, "/health": {}, "/ping": {}}
 
 // responseWriter is a wrapper around http.ResponseWriter that captures the status code
-// and tracks the number of bytes writtenBytes to the response.
+// and tracks the number of written bytes to the response.
 type responseWriter struct {
 	http.ResponseWriter
 	wroteHeader  atomic.Bool  // tracks if WriteHeader has been called

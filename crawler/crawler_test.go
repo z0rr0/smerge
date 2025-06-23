@@ -310,8 +310,6 @@ func TestCrawler_Run(t *testing.T) {
 			result := maps.Clone(c.result)
 			c.RUnlock()
 
-			maps.Keys(result)
-
 			if err := compareResults(result, tc.expectedResult); err != nil {
 				t.Error(err)
 			}

@@ -258,39 +258,20 @@ func (c *Crawler) fetchURLSubscription(ctx context.Context, sub *cfg.Subscriptio
 
 // fetchLocalSubscription fetches the subscription if sub.Path is a local file.
 func (c *Crawler) fetchLocalSubscription(ctx context.Context, sub *cfg.Subscription) (io.ReadCloser, int, error) {
-	var (
-		fd       *os.File
-		err      error
-		done     = make(chan struct{})
-		fileName = sub.Path.String()
-	)
+	fileName := sub.Path.String()
 
-	go func() {
-		fd, err = os.OpenInRoot(c.rootDir, fileName)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		if err != nil {
-			return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
-		}
-		// if a subscription's file was opened successfully, return a fake http.StatusOK status
-		// to maintain a consistent signature with fetchURLSubscription.
-		return fd, http.StatusOK, nil
-	case <-ctx.Done():
-		// use the derived context error to provide accurate reason
-		err = ctx.Err()
-
-		// if we return error, the file will not be closed, do it here obviously
-		if fd != nil {
-			if closeErr := fd.Close(); closeErr != nil {
-				err = errors.Join(err, closeErr)
-			}
-		}
-
+	if err := ctx.Err(); err != nil {
 		return nil, 0, fmt.Errorf("open file=%q context error: %w", fileName, err)
 	}
+
+	fd, err := os.OpenInRoot(c.rootDir, fileName)
+	if err != nil {
+		return nil, 0, fmt.Errorf("open file=%q error: %w", fileName, err)
+	}
+
+	// if a subscription's file was opened successfully, return a fake http.StatusOK status
+	// to maintain a consistent signature with fetchURLSubscription.
+	return fd, http.StatusOK, nil
 }
 
 // fetchSubscription fetches the subscription urls.

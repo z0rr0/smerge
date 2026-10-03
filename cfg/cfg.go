@@ -86,12 +86,16 @@ func (prefixes Prefixes) LogValue() slog.Value {
 
 	for i := range count - 1 {
 		escaped = strings.ReplaceAll(prefixes[i], "'", "\\'")
-		b.WriteString(fmt.Sprintf("'%s'", escaped))
+		if _, err := fmt.Fprintf(&b, "'%s'", escaped); err != nil {
+			slog.Error("failed to write prefix", "prefix", prefixes[i], "error", err)
+		}
 		b.WriteString(", ")
 	}
 
 	escaped = strings.ReplaceAll(prefixes[count-1], "'", "\\'")
-	b.WriteString(fmt.Sprintf("'%s'", escaped))
+	if _, err := fmt.Fprintf(&b, "'%s'", escaped); err != nil {
+		slog.Error("failed to write prefix", "prefix", prefixes[count-1], "error", err)
+	}
 	b.WriteString("]")
 
 	return slog.StringValue(b.String())

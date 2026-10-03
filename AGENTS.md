@@ -24,7 +24,7 @@ SMerge is a Go-based web service that merges multiple stealth proxy subscription
 ├── smerge_test.go # tests for the main package
 ├── config.json    # example runtime configuration
 ├── Makefile       # build, lint, and test commands
-├── README.md      # project overview and usage
+├── README.md      # project overview, usage and configuration reference
 └── AGENTS.md      # this guide
 ```
 
@@ -33,10 +33,15 @@ SMerge is a Go-based web service that merges multiple stealth proxy subscription
 Use the provided Makefile for common tasks:
 
 ```bash
-make build    # compile the application
-make lint     # run format checks, linters, and static analysis
-make test     # run tests with race detection and coverage
+make build        # compile the application
+make lint         # run format checks, linters, and static analysis
+make test         # run tests with race detection and coverage
+make docker       # host-arch image, loaded into the local Docker
+make docker-push  # linux/amd64 + linux/arm64 image, pushed to Docker Hub
 ```
+
+The configuration reference (all fields, types and constraints) is the "Configuration"
+section of `README.md`; `config.json` is an example.
 
 Alternatively, individual commands:
 
@@ -70,4 +75,4 @@ Alternatively, individual commands:
 
 - Focus on fixing issues at the root cause; avoid superficial patches
 - Keep changes minimal and consistent with existing patterns
-- Update documentation (e.g., README.md, CONFIG.md) when introducing new functionality or behavioral changes
+- Update documentation (e.g., README.md) when introducing new functionality or behavioral changes

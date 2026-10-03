@@ -18,7 +18,12 @@ make build
 Or using docker:
 
 ```bash
+# build the image for the host architecture
 make docker
+
+# build linux/amd64 + linux/arm64 and push them to Docker Hub,
+# tagged as latest and as the current git tag
+make docker-push
 ```
 
 Test coverage:
@@ -68,6 +73,13 @@ Or using [docker-compose](https://github.com/z0rr0/smerge/blob/main/docker-compo
 docker compose up -d
 ```
 
+The config inside the container needs `"host": "0.0.0.0"` (`localhost` is not
+reachable through the published port).
+
+The compose service has a healthcheck that requests `/health` on port `43210`;
+keep it in sync with `port` in `data/config.json`. The health endpoint (aliases `/ok` and `/ping`)
+returns `OK` with the version info.
+
 ## Configuration
 
 An example of JSON configuration file can be found in
@@ -85,7 +97,7 @@ An example of JSON configuration file can be found in
 - `port` (uint16): Port for the server
 - `user_agent` (string): User agent string for HTTP requests
 - `timeout` (Duration): Global timeout for requests
-- `root` (string, optional): Root directory for local subscriptions
+- `root` (string): Root directory for local subscriptions
 - `retries` (uint8): Number of retries for failed requests
 - `debug` (bool): Enable debug mode
 - `limiter` (LimitOptions): Rate limiting options
@@ -125,7 +137,7 @@ An example of JSON configuration file can be found in
 
 - Minimum period for group refresh: 1 second
 - Minimum timeout for subscription refresh: 10 milliseconds
-- Local subscriptions require a docker_volume to be specified
+- Local subscriptions require a root directory to be specified
 - Group names and endpoints must be unique
 - Subscription names must be unique within a group
 
